@@ -6,6 +6,8 @@ Open it in any modern browser: no installation, no server, no internet connectio
 > Independent project, not affiliated with or endorsed by Fractal Audio Systems.
 > Always keep a backup of your presets before sending edited files to your device.
 
+**[▶ Open the editor in your browser](https://szecs.github.io/vp4-offline-editor/)**, or download [`vp4-offline-editor.html`](vp4-offline-editor.html) and use it offline.
+
 ![VP4 Offline Editor: a full backup loaded, editing the Compressor in the effect chain of preset F2](docs/screenshot.webp)
 
 ## Features
@@ -31,7 +33,7 @@ Open it in any modern browser: no installation, no server, no internet connectio
 
 ## Usage
 
-1. Download `vp4-offline-editor.html` and open it in Chrome, Edge or Firefox.
+1. Open https://szecs.github.io/vp4-offline-editor/, or download `vp4-offline-editor.html` and open it in Chrome, Edge or Firefox (it works without an internet connection; nothing is uploaded in either case).
 2. Click **Open folder…** and choose a VP4 backup folder (or **Open presets…** for single files).
 3. Edit, then use **Download .syx** (one preset or system file) or **Export all (ZIP)**.
 4. Send the file to the VP4 with VP4-Edit or Fractal-Bot, as you would any preset.
