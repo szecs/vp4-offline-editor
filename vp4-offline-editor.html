@@ -1,0 +1,1166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VP4 Offline Editor</title>
+<style>
+:root{
+  --bg:#1b1b1d; --panel:#262628; --panel2:#2f2f32; --line:#3a3a3e; --text:#e6e6e6; --dim:#9a9aa0;
+  --accent:#19e0e8; --accent2:#f2b01e; --ok:#3ecf6a; --warn:#f2b01e; --bad:#ff5a5a; --sel:#123c40;
+  font-family: "Segoe UI", Roboto, system-ui, sans-serif;
+}
+*{box-sizing:border-box}
+[hidden]{display:none !important}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-size:14px}
+button,select,input{font:inherit;color:var(--text)}
+button{background:#3a3a3e;border:1px solid #4a4a50;border-radius:3px;padding:6px 12px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+button.primary{border-color:var(--accent);color:var(--accent)}
+button:disabled{opacity:.4;cursor:default;border-color:#4a4a50}
+input[type=text],input[type=number],select{background:#111;border:1px solid var(--line);border-radius:3px;padding:6px 8px}
+input[type=text]:focus,input[type=number]:focus,select:focus{outline:none;border-color:var(--accent)}
+header{display:flex;align-items:center;gap:16px;padding:10px 16px;background:#000;border-bottom:1px solid var(--line);flex-wrap:wrap}
+header h1{margin:0;font-size:20px;letter-spacing:.06em;font-weight:700}
+header h1 span{color:var(--accent)}
+header .tools{display:flex;gap:8px;flex-wrap:wrap;margin-left:auto}
+.banner{background:#3a2c08;color:#ffd77a;border-bottom:1px solid #5a4510;padding:8px 16px;font-size:13px}
+.banner b{color:#fff}
+main{display:grid;grid-template-columns:minmax(300px,420px) minmax(0,1fr);gap:12px;padding:12px;min-height:calc(100% - 110px)}
+@media (max-width:900px){main{grid-template-columns:1fr}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:4px;min-width:0}
+.panel h2{margin:0;padding:10px 12px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}
+.panel h2 .grow{flex:1}
+#drop{border:2px dashed var(--line);border-radius:4px;margin:12px;padding:18px;text-align:center;color:var(--dim)}
+#drop.over{border-color:var(--accent);color:var(--accent)}
+/* slot grid */
+#grid{display:grid;grid-template-columns:28px repeat(4,1fr);gap:3px;padding:10px 12px;max-height:62vh;overflow:auto}
+#grid .bk{color:var(--dim);font-weight:700;display:flex;align-items:center;justify-content:center}
+.cell{background:var(--panel2);border:1px solid transparent;border-radius:3px;padding:4px 6px;font-size:12px;min-height:34px;cursor:pointer;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;position:relative}
+.cell .num{color:var(--dim);font-size:10px;display:block}
+.cell.empty{color:#555;cursor:default}
+.cell.filled:hover{border-color:#555}
+.cell.sel{border-color:var(--accent);background:var(--sel)}
+.cell.conflict{border-color:var(--bad)}
+.cell.mod::after{content:"";position:absolute;top:4px;right:4px;width:6px;height:6px;border-radius:50%;background:var(--accent2)}
+.cell.bad .nm{color:var(--bad)}
+.cell.dragover{outline:2px solid var(--accent)}
+/* list */
+#list{max-height:40vh;overflow:auto}
+table{width:100%;border-collapse:collapse}
+th,td{text-align:left;padding:5px 8px;border-bottom:1px solid #303034;font-size:13px;white-space:nowrap}
+th{color:var(--dim);font-weight:600;position:sticky;top:0;background:var(--panel)}
+tr.row{cursor:pointer}
+tr.row:hover td{background:#2c2c30}
+tr.row.sel td{background:var(--sel)}
+td.src{color:var(--dim);max-width:180px;overflow:hidden;text-overflow:ellipsis}
+.pill{display:inline-block;border-radius:9px;padding:1px 8px;font-size:11px;font-weight:600}
+.pill.ok{background:#173d24;color:var(--ok)}
+.pill.warn{background:#3d3110;color:var(--warn)}
+.pill.bad{background:#401818;color:var(--bad)}
+.pill.mod{background:#3d3110;color:var(--accent2)}
+/* detail */
+#detail{padding:14px 16px}
+#detail .empty{color:var(--dim);padding:30px 0;text-align:center}
+.pname{font-size:26px;color:var(--accent2);margin:0 0 14px;font-weight:500;word-break:break-all}
+.pname .slot{margin-right:14px}
+.form{display:grid;grid-template-columns:120px 1fr;gap:10px 12px;align-items:center;max-width:620px}
+.form label{color:var(--dim);font-size:12px;text-transform:uppercase;letter-spacing:.06em}
+.row-inline{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.counter{color:var(--dim);font-size:12px}
+.section{margin-top:22px}
+.section h3{margin:0 0 8px;font-size:12px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em}
+.checks{list-style:none;margin:0;padding:0}
+.checks li{padding:3px 0;font-size:13px}
+.checks li::before{display:inline-block;width:18px;font-weight:700}
+.checks li.ok::before{content:"✓";color:var(--ok)}
+.checks li.warn::before{content:"!";color:var(--warn)}
+.checks li.bad::before{content:"✗";color:var(--bad)}
+.kv{display:grid;grid-template-columns:200px 1fr;gap:4px 12px;font-size:13px}
+.kv div:nth-child(odd){color:var(--dim)}
+.mono{font-family:Consolas,"Cascadia Mono",monospace;font-size:12px}
+pre.hex{background:#111;border:1px solid var(--line);border-radius:3px;padding:10px;max-height:340px;overflow:auto;margin:0}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.foot{padding:10px 16px 16px;color:var(--dim);font-size:11px;text-align:center}
+#toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#000;border:1px solid var(--accent);padding:8px 14px;border-radius:4px;display:none;z-index:9}
+#ignored{padding:8px 12px;color:var(--dim);font-size:12px}
+.hint{color:var(--dim);font-size:12px;margin-top:4px}
+.scenes{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.scenes label{display:flex;align-items:center;gap:6px}.scenes span{color:var(--dim);font-size:12px;font-weight:700}.scenes input{flex:1;min-width:0}
+.section h3 .tgl{float:right;text-transform:none;letter-spacing:0;font-weight:400;cursor:pointer}
+.section h3 .tgl input{vertical-align:-2px}
+.btabs{display:flex;flex-wrap:wrap;gap:6px}
+.smx-wrap{overflow-x:auto}
+table.smx{table-layout:fixed;min-width:420px}
+table.smx th,table.smx td{padding:4px;border-bottom:1px solid #303034;vertical-align:middle;white-space:normal}
+table.smx th:first-child{width:22%}
+table.smx th input{width:100%;padding:4px 6px;font-weight:600}
+table.smx th .sn{display:block;font-size:10px;color:var(--dim);font-weight:400;margin-top:2px;text-transform:uppercase;letter-spacing:.06em}
+table.smx td.sl{font-weight:600;font-size:13px}table.smx td.sl span{display:block;font-size:10px;color:var(--dim);font-weight:400}
+table.smx tr.empty td{color:var(--dim);font-style:italic}
+table.smx td.chg .cell2{outline:1px solid var(--accent2);outline-offset:2px;border-radius:3px}
+.cell2{display:flex;gap:4px;align-items:center}
+.cell2 select{padding:3px 4px;flex:0 0 auto}
+.cell2 .nochan{color:var(--dim);width:34px;text-align:center}
+.byp{flex:1;padding:3px 0;font-size:11px;font-weight:700;letter-spacing:.04em;min-width:38px}
+.byp.on{background:#173d24;border-color:#2f7a48;color:var(--ok)}
+.byp.off{background:#2a2a2d;border-color:#4a4a50;color:var(--dim)}
+.btabs.chain .dragover{outline:2px dashed var(--accent);outline-offset:1px}
+.btabs.chain [draggable]{cursor:grab}
+.mover{float:right;display:inline-flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;font-weight:400;margin-left:12px}
+.mover span{font-size:12px;color:var(--dim)}
+table.params tr.grp td{padding-top:14px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);border-bottom:1px solid var(--line)}
+table.params tr.grp .unit{text-transform:none;letter-spacing:0;font-weight:400}
+.midi{display:flex;flex-direction:column;gap:3px}
+.mrow{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--dim);flex-wrap:wrap}
+.mrow input.vint{width:56px}
+.mrow.chg{color:var(--accent2)}
+.menu{display:flex;flex-wrap:wrap;gap:6px;margin:20px 0 4px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+.mtab{padding:5px 12px;background:#3a3a3e;border:2px solid #555;border-radius:3px;font-weight:600}
+.mtab:hover{border-color:#888}
+.mtab.on{border-color:var(--accent);color:var(--accent);background:#1e2a2c}
+.view{min-height:200px}
+.subtabs{display:flex;flex-wrap:wrap;gap:4px}
+.rcols{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+@media (max-width:700px){.rcols{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.rcol{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:10px;text-align:center;min-height:120px}
+.rcol.chg{border-color:var(--accent2)}
+.rh{font-weight:700;margin-bottom:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rb{display:flex;flex-direction:column;align-items:center;gap:6px}
+.rb select,.r4sel select{min-width:110px;text-align:center}
+.rnote{font-size:13px;line-height:1.4;padding-top:6px}
+.rlbl{display:block;color:var(--dim);font-size:12px;margin-bottom:2px}
+.r4cm{display:grid;grid-template-columns:170px 1fr;gap:16px;align-items:center;margin-top:14px;padding:12px;background:var(--panel2);border:1px solid var(--line);border-radius:4px}
+.r4cm.chg{border-color:var(--accent2)}
+.r4cm p{margin:0}
+.r4sel{text-align:center}
+@media (max-width:600px){.r4cm{grid-template-columns:1fr}}
+.pgroup{flex:1 1 0;min-width:64px;display:flex;flex-direction:column;gap:4px;padding:0 6px;border-left:2px solid #5a5a60;border-right:2px solid #5a5a60;border-radius:4px}
+.btabs.chain .pgroup .btab{flex:0 0 auto;width:100%}
+.rsub{margin-bottom:12px}
+.mixgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:12px}
+@media (max-width:700px){.mixgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.mixcol{display:flex;flex-direction:column;gap:10px;align-items:stretch;text-align:left}
+.mixcol .rh{text-align:center;margin-bottom:0}
+.chsel{display:flex;justify-content:center;background:#111;border-radius:3px}
+.chsel button{flex:1;background:transparent;border:0;font-weight:700;font-size:16px;color:#666;padding:4px 0}
+.chsel button.on{color:#fff}.chsel button:disabled{color:#333}
+.mk input[type=range]{width:100%;accent-color:var(--accent)}
+.mk input.vnum{width:70px;padding:3px 6px;text-align:right}
+.mk select{width:100%}
+.mk .na{background:#111;border-radius:3px;padding:6px;text-align:center;color:var(--dim);font-weight:600}
+.mk.chg .rlbl{color:var(--accent2)}
+.toptabs{display:flex;gap:4px;padding:10px 12px 0;border-bottom:1px solid var(--line);background:#121214}
+.ttab{padding:8px 20px;border:1px solid var(--line);border-bottom:none;border-radius:4px 4px 0 0;background:#232326;color:var(--dim);font-weight:600;margin-bottom:-1px}
+.ttab.on{background:var(--bg);color:var(--accent);border-color:var(--accent) var(--accent) var(--bg)}
+#sysMain{margin:12px}
+.sysgrid{display:grid;grid-template-columns:170px minmax(0,1fr);gap:16px;margin-top:16px}
+@media (max-width:700px){.sysgrid{grid-template-columns:1fr}}
+.sysnav{display:flex;flex-direction:column;gap:2px}
+.sysnav button{text-align:left;background:transparent;border:0;border-radius:3px;padding:8px 10px;color:var(--dim);font-weight:600}
+.sysnav button:hover{background:#2c2c30}
+.sysnav button.on{background:#2f2f32;color:var(--text)}
+table.sysparams td.pn{width:40%}
+.btabs.chain{align-items:center;gap:4px;flex-wrap:nowrap;overflow-x:auto;padding-bottom:2px}
+.btabs.chain .btab{flex:1 1 0;min-width:64px;max-width:none;padding:7px 8px}
+.btabs.chain .btab.chainx{flex:0 0 auto;min-width:0;padding:7px 10px}
+.btabs .arrow{color:var(--dim);font-size:14px}
+.btab.chainx{min-width:0;justify-content:center;align-items:center;color:var(--dim);font-weight:700;cursor:default;align-self:stretch;border-style:solid;letter-spacing:.06em}
+.btab.chainx:hover{border-color:#4a4a50;background:var(--panel2)}
+.btab.chainx.empty{font-weight:400;font-style:italic;border-style:dashed;letter-spacing:0}
+.btabs + .btabs{margin-top:16px;padding-top:16px;border-top:1px dashed var(--line)}
+.btab{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:118px;max-width:200px;padding:7px 12px;text-align:left;background:var(--panel2);border:1px solid #4a4a50;border-bottom:3px solid #4a4a50}
+.btab:hover{border-color:var(--accent);background:#34343a}
+.btab.sel{border-color:var(--accent);border-bottom-color:var(--accent);background:var(--sel)}
+.btab .bn{font-weight:600}.btab.sel .bn{color:var(--accent)}
+.btab .bt{font-size:11px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent2);vertical-align:2px}
+.editor{border-top:1px solid var(--line);padding-top:14px}
+.tabs{display:flex;gap:4px;margin-bottom:10px;flex-wrap:wrap}
+.tab{padding:4px 14px}.tab.on{border-color:var(--accent);color:var(--accent);background:var(--sel)}
+table.params{table-layout:fixed}table.params td{padding:4px 8px;vertical-align:middle;white-space:normal}
+table.params td.pn{white-space:normal;width:34%}
+table.params td.pc{width:38%}table.params td.pc select{width:100%;max-width:260px}
+table.params td.pv{width:24%;white-space:nowrap}table.params td.pr{width:28px;padding:0}
+table.params input[type=range]{width:100%;accent-color:var(--accent)}
+table.params input.vnum,table.params input.vint{width:84px;padding:3px 6px;text-align:right}
+table.params .unit{color:var(--dim);font-size:12px}
+table.params tr.chg td.pn{color:var(--accent2)}
+button.mini{padding:0 6px;font-size:13px;line-height:20px}
+.sw{cursor:pointer}
+@media (max-width:600px){table.params td.pn{width:auto}table.params td.pv{width:auto}}
+</style>
+</head>
+<body>
+<header>
+  <h1>OFFLINE <span>VP4</span> EDITOR</h1>
+  <div class="tools">
+    <button id="btnFiles" class="primary">Open presets…</button>
+    <button id="btnFolder">Open folder…</button>
+    <button id="btnZip" disabled title="All loaded presets as individual .syx files in a ZIP">Export all (ZIP)</button>
+    <button id="btnBank" disabled title="One .syx containing all loaded presets, ordered by slot">Export combined .syx</button>
+    <button id="btnClear" disabled>Clear</button>
+  </div>
+  <input type="file" id="inFiles" accept=".syx" multiple hidden>
+  <input type="file" id="inFolder" webkitdirectory multiple hidden>
+</header>
+<div class="banner"><b>Note:</b> every kind of edit in this editor (names, slots, parameters, block types, scene settings, slot swaps, routing) has been confirmed on a VP4 running firmware 4.x. All check values are recomputed and edited presets are re-compressed exactly like Fractal&#39;s own files. Keep your backups, especially after firmware updates.</div>
+
+<nav class="toptabs" role="tablist"><button class="ttab on" data-top="presets" role="tab">Presets</button><button class="ttab" data-top="system" role="tab">System</button></nav>
+<main id="presetMain">
+  <div style="display:flex;flex-direction:column;gap:12px;min-width:0">
+    <section class="panel">
+      <h2><span class="grow">Slots</span><span id="countInfo"></span></h2>
+      <div id="drop">Drop .syx files or a backup folder here<br><span class="hint">Single presets, VP4-Edit / Fractal-Bot backups and "allBanks" files are supported</span></div>
+      <div id="grid"></div>
+      <div class="hint" style="padding:0 12px 10px">Drag a preset onto another slot to move it there; if that slot is taken, the two swap.</div>
+    </section>
+    <section class="panel">
+      <h2><span class="grow">Loaded presets</span><label style="text-transform:none;letter-spacing:0;font-size:12px"><input type="checkbox" id="selAll"> all</label></h2>
+      <div id="list"></div>
+      <div id="ignored"></div>
+    </section>
+  </div>
+  <section class="panel">
+    <h2>Preset</h2>
+    <div id="detail"><div class="empty">Open or drop some .syx files to get started.</div></div>
+  </section>
+</main>
+<section id="sysMain" class="panel" hidden><h2>System settings</h2><div id="sysDetail" style="padding:14px 16px"></div></section>
+<footer class="foot">VP4 Offline Editor v1.0.0 · works offline, nothing is uploaded · independent project, not affiliated with or endorsed by Fractal Audio Systems. "Fractal Audio" and "VP4" are trademarks of their owner.</footer>
+<div id="toast"></div>
+
+<script id="core">
+/* ====== VP4 preset file format (as far as known) ======
+   SysEx: F0 00 01 74 14 <fn> ... <cks> F7, cks = XOR of all preceding bytes & 0x7F
+   fn 0x77  header : bank, slot, 3-byte word count (0x1000)
+   fn 0x78  data   : 2-byte word count (0x400), then words packed as 3 bytes (7+7+2 bits)
+   fn 0x79  footer : 3-byte value = XOR of all data words
+   Word layout: [0]=version  [1]=0xAA55  [2]=CRC-16/CCITT (poly 0x1021, init 0xAA55) over all words
+                (low byte first) with word 2 taken as 0   [3]=0
+                [4..19]=name, 32 chars, 2 per word, low byte first, space padded, last char NUL
+                [36]=uncompressed bytes  [37]=compressed bytes  [38..]=compressed data
+   Compressed data: bitstream (bytes low-first, bits MSB-first) holding a pre-order Huffman tree
+   (0 = branch, 1 = leaf + 8-bit value) followed by the Huffman-coded bytes.
+   Unpacked: 16-bit LE words. 4 scenes of 40 words (name at +2), then blocks:
+   [blockId, 0, 0, 0, 0, paramCount, channelCount] + paramCount*channelCount values.
+*/
+const VP4 = (() => {
+  const MODEL = 0x14, BANKS = 26, SLOTS = 4, NAME_LEN = 31;
+  const xorCks = (b, end) => { let x = 0; for (let i = 0; i < end; i++) x ^= b[i]; return x & 0x7f; };
+  function crcWords(w) {
+    let c = 0xAA55;
+    for (let i = 0; i < w.length; i++) {
+      const x = i === 2 ? 0 : w[i];
+      for (const b of [x & 255, x >> 8]) { c ^= b << 8; for (let k = 0; k < 8; k++) c = c & 0x8000 ? ((c << 1) ^ 0x1021) & 0xffff : (c << 1) & 0xffff; }
+    }
+    return c;
+  }
+  const xorWords = w => w.reduce((a, v) => a ^ v, 0);
+
+  // Block ids as stored in presets -> name and (where it exists) the list of types (parameter 10)
+  const BLOCKS = {"2":{"n":"Controllers","t":null},"37":{"n":"Input","t":null},"42":{"n":"Output","t":null},"46":{"n":"Compressor","t":null},"50":{"n":"Graphic EQ","t":null},"54":{"n":"Parametric EQ","t":null},"66":{"n":"Reverb","t":["Room, Small","Room, Medium","Room, Large","Hall, Small","Hall, Medium","Hall, Large","Chamber, Small","Chamber, Medium","Chamber, Large","Plate, Small","Plate, Medium","Plate, Large","Hall, St. George's Church","Hall, St. Albans Cathedral","Huge, York Minster","Spring, Small","Spring, Medium","Spring, Large","Huge, Cavern","Huge, Stone Quarry","Room, Studio","Ambience","Hall, Concert","Hall, Large Deep","Room, Recording Studio C","Hall, North Church","Hall, South Church","Plate, London","Plate, Sun","Room, Huge","Room, Drum","Room, Hallway","Hall, Tunnel","Chamber, Deep","Room, Large Wooden","Huge, Gymnasium","Hall, Asylum","Huge, Deep Space","Room, Recording Studio A","Room, Large Tiled","Plate, Vocal","Hall, Wide","Hall, Mechanic's","Hall, Chorus","Huge, Ice Castle","Hall, Music","Hall, Symphony","Cloud, Cirrocumulus","Cloud, Cumulonimbus","Cloud, Nimbostratus","Cloud, Stratocumulus","Spring, Deluxe","Hall, Opera House","Hall, Colosseum","SFX Sagittarius","SFX Gemini","SFX Capricorn","SFX Aquarius","SFX Andromeda","SFX Pegasus","SFX Centaurus","SFX Ursa Major","SFX Pleiades","Echo, Plate","Echo, Hall","Echo, Room","Spring, Tube","Spring, Studio","Spring, Vibrato-King","Spring, British","Echo, Fields of Pyrite","Plate, Gold","Echo, Pitch Plate","Hall, Marble","Huge, Mausoleum","Hall, Nashville Church","Huge, Warehouse","Spring, Lush","Spring, Vibrato-King Custom"]},"70":{"n":"Delay","t":["Digital Mono","Digital Stereo","Analog Mono","Analog Stereo","Mono Tape","Stereo Tape","Ping-Pong","Dual Delay","Reverse Delay","Sweep Delay","Ducking Delay","Vintage Digital","2290 w/ Modulation","Ambient Stereo","Deluxe Mind Guy","Mono BBD","Stereo BBD","Lo-Fi Tape","Stereo Mind Guy","Graphite Copy Delay","DM-Two Delay","Diffused Delay","Zephyr","Worn Tape","Pan Delay","Stereo Trem Delay","Wandering Delays","Dual Head Tape","Surround Delay"]},"74":{"n":"Multitap Delay","t":["Quad-Tap Delay","Quad Parallel Delay","Quad Series Delay","Diffusor","Quad Tape Delay","Quad-Tap Band Delay"]},"78":{"n":"Chorus","t":["Digital Mono","Digital Stereo","Analog Mono","Analog Stereo","Japan CE-2","Warm Stereo","80'S Style","Triangle Chorus","8-Voice Stereo","Tape Chorus","Dimension 1","Dimension 2","Dimension 3","4-Voice Analog","8-Voice Analog","Stereo Tri-Chorus","Dual Chorus","Tape Flanger","Vibrato","Japan CE-1 Vibrato","Japan CE-1 Chorus","Japan CH-1","MX234","Small Copy","Japan CE-2 Bass","Rockguy","MX134 Stereo"]},"82":{"n":"Flanger","t":["Digital Mono","Digital Stereo","Analog Mono","Analog Stereo","Thru-Zero","Stereo Jet","Zero Flanger","Pop Flanger","MXF-117","BBF-2","Electric Mystery","Deluxe Mystery","D/AD 185","Manual Thru-Zero Flanger","Step Flanger","FAS Flanger","Binary Flange","Cancel Flange","Count of Flanging","Cuda Flange","Harmonoflange","Hemisflange","Lofty Flange","Melodic Flange","80's Rack Flanger","Scion Stereo Flange","Spirit Flange","Starship Flanger","Trippy Flanger","Tubular","Vowel Flanger","Manual Cancel Flanger"]},"86":{"n":"Rotary","t":null},"90":{"n":"Phaser","t":["Digital Mono","Digital Stereo","Script 45","Script 90","Block 90","Classic Vibe","Stereo 8-Stage","Barber Pole","Stripe 90","Naughty Rock","FAS Vibe","Treadle Phaser","Virtuoso Phaser","Borg Phaser","Ultra-Super-Mega Phaser","Mutated Twin-Phaser","Modern Vibe"]},"94":{"n":"Wah","t":["FAS Wah","Clyde","Cry Babe","VX846","Color-Tone","Funk Wah","Mortal","VX845","Paragon"]},"98":{"n":"Formant","t":["AAA","EEE","III","OHH","OOO","EHH","AHH","AWW","UHH","ERR"]},"102":{"n":"Volume/Pan","t":null},"106":{"n":"Tremolo/Panner","t":["VCA Trem","Panner","Bias Trem","Harmonic Trem","Optical Trem 1","Optical Trem 2","Neon Trem"]},"110":{"n":"Pitch","t":["Detune Dual","Detune Quad","Fixed Shift Dual","Fixed Shift Quad","Intelligent Shift Dual","Intelligent Shift Quad","Whammy Classic","Octave Divider","Crystal Echoes","Whammy Advanced","Arpeggiator","Custom Shifter","Virtual Capo","Crystal Shimmer","Fixed Shift Single","Intelligent Shift Single","Octave Polygen 1","Octave Polygen 2"]},"114":{"n":"Filter","t":["Null","Low-Pass","Band-Pass","High-Pass","Low-Shelf","High-Shelf","Peaking","Notch","Tilt EQ","Low-Shelf 2","High-Shelf 2","Peaking 2","Feedforward Comb","Feedback Comb","All-Pass","Envelope Filter","Auto-Wah","Touch-Wah"]},"118":{"n":"Drive","t":["Rat Distortion","PI Fuzz","Tube Drive 3-Knob","Super OD","Treble Boost","Mid Boost","T808 OD","Fat Rat","T808 Mod","Octave Distortion","Plus Distortion","Hard Fuzz","FET Boost","Tape Distortion","Full OD","Blues OD","Shred Distortion","M-Zone Distortion","Bender Fuzz","BB Pre","Master Fuzz","Face Fuzz","Bit Crusher","Eternal Love","Esoteric ACB","Esoteric RCB","Zen Master","Tube Drive 4-Knob","FAS LED-Drive","SDD Preamp","FET Preamp","Suhr Riot","Micro Boost","FAS Boost","Timothy","Shimmer Drive","Blackglass 7K","Tone of Kings","Heartpedal 11","Jam Ray","OD 250","TS9DX +","Box o' Crunch","OD 250 Gray","Horizon Precision Drive","Compulsion Distortion","Hoodoo Drive","TS9DX Hot","DS1 Distortion","DS1 Distortion Mod","MCMLXXXI Drive","Sonic Drive","Valve Screamer VS9","Maxoff 808","Klone Chiron","Esoteric Bass RCB","BB Pre AT","Griddle Cake","Bosom Boost","OD-One Overdrive","Nobelium OVD-1","Sunrise Splendor","Gauss Drive","Integral Pre","Colortone Booster","Colortone OD","MOSFET Distortion","Super Fuzz","Tube Drive 5-Knob","77 Custom OD","Angry Chuck","Guardian Photon Speed","Paradigm Shifter","PI Fuzz - Bass","NoAmp Bass DI","NoAmp Bass Pre","Royal Bass DI","Swedish Metal"]},"122":{"n":"Enhancer","t":null},"130":{"n":"Synth","t":null},"138":{"n":"Megatap Delay","t":null},"146":{"n":"Gate/Expander","t":null},"150":{"n":"Ring Modulator","t":null},"162":{"n":"Resonator","t":null},"178":{"n":"Plex Delay","t":["Plex Delay","Plex Detune","Plex Shift","Plex Verb","Shimmer Verb"]},"195":{"n":"IR Player","t":null},"206":{"n":"Routing / 4CM","t":null}};
+
+  function decompress(w) {
+    const usz = w[36], b = [];
+    for (let k = 38; k < w.length; k++) b.push(w[k] & 255, w[k] >> 8);
+    let pos = 0; const end = b.length * 8;
+    const rd = () => { if (pos >= end) throw new Error('compressed data ends early'); const v = (b[pos >> 3] >> (7 - (pos & 7))) & 1; pos++; return v; };
+    const node = d => { if (d > 64) throw new Error('bad Huffman tree'); if (rd()) { let v = 0; for (let i = 0; i < 8; i++) v = (v << 1) | rd(); return { v }; } return { l: node(d + 1), r: node(d + 1) }; };
+    const tree = node(0), out = new Uint8Array(usz);
+    for (let i = 0; i < usz; i++) { let n = tree; while (n.v === undefined) n = rd() ? n.r : n.l; out[i] = n.v; }
+    return { out, usedBytes: Math.ceil(pos / 8) };
+  }
+
+  function readContents(w) {
+    const { out, usedBytes } = decompress(w);
+    const W = []; for (let i = 0; i + 1 < out.length; i += 2) W.push(out[i] | out[i + 1] << 8);
+    const str = (at, n) => { let s = ''; for (let k = 0; k < n; k++) { const v = W[at + k]; for (const c of [v & 255, v >> 8]) { if (!c) return s.trim(); s += String.fromCharCode(c); } } return s.trim(); };
+    const scenes = [0, 1, 2, 3].map(i => str(2 + 40 * i, 16));
+    let p = -1;
+    for (let k = 160; k < W.length - 7; k++) if (W[k] && W[k] < 256 && !W[k + 1] && !W[k + 2] && !W[k + 3] && !W[k + 4] && W[k + 5] && W[k + 5] < 300 && W[k + 6] >= 1 && W[k + 6] <= 4) { p = k; break; }
+    const blocks = [];
+    while (p >= 0 && p + 7 <= W.length) {
+      const id = W[p], n = W[p + 5], ch = W[p + 6];
+      if (W[p + 1] || W[p + 2] || W[p + 3] || W[p + 4] || !n || n > 300 || ch < 1 || ch > 4) break;
+      blocks.push({ id, n, ch, at: p + 7 }); p += 7 + n * ch;
+    }
+    return { scenes, blocks, usedBytes, words: W, oddByte: out.length & 1 ? out[out.length - 1] : null };
+  }
+
+  // Scene names live in the unpacked words: 16 words at 2 + 40*i
+  function setSceneName(c, i, name) {
+    const n = cleanName(name).padEnd(NAME_LEN, ' ') + '\0';
+    for (let k = 0; k < 16; k++) c.words[2 + 40 * i + k] = n.charCodeAt(2 * k) | n.charCodeAt(2 * k + 1) << 8;
+    c.scenes[i] = cleanName(name).trim();
+  }
+
+  function blockInfo(b, W) {
+    let base = b.id, inst = 1;
+    while (!BLOCKS[base] && base > 0 && inst < 4) { base--; inst++; }
+    if (b.id >= 3 && b.id <= 18) return { name: `Modifier ${b.id - 2}`, advanced: true, eff: 3 };
+    const d = BLOCKS[base];
+    if (!d) return { name: `Block ${b.id}`, advanced: true };
+    const name = b.id === 206 || b.id === 2 ? d.n : `${d.n} ${inst}`;
+    // Blocks whose VP4-Edit layouts have no Mix control (Mix shows as N/A there)
+    const noMix = NO_MIX.has(base);
+    const types = d.t && W ? Array.from({ length: b.ch }, (_, c) => { const v = W[b.at + c * b.n + 10]; return d.t[v] ?? `type ${v}`; }) : null;
+    return { name, types, eff: EFF_OF[base], advanced: false, noMix };
+  }
+
+  /* ---- Parameter definitions (from VP4-Edit's cache of firmware 4.04 definitions) ----
+     Each param: [id, name, named?, type, min, max, displayScale, step, enumListIndex]
+     type: low digit = unit, high digit = scale (1/2 int/enum, 3 linear, 4 log, 5 log shown 0-10,
+     6 dB, 7 mix, 8 level, 9 balance, a-c enum, d hidden, e on/off). Stored value 0..65534 for continuous. */
+  const DEFS = {"lists":[["SINE","TRIANGLE","SQUARE","SAW UP","SAW DOWN","RANDOM","LOG","EXP","TRAPEZOID","ASTABLE"],["NONE ","1/64 TRIP","1/64","1/64 DOT","1/32 TRIP","1/32","1/32 DOT","1/16 TRIP","1/16","1/16 DOT","1/8 TRIP","1/8","1/8 DOT","1/4 TRIP","1/4","1/4 DOT","1/2 TRIP","1/2","1/2 DOT","1 TRIP","1","1 DOT","2","3","4","4/3","5/4","5/64","7/64","9/64","10/64 (5/32)","11/64","13/64","14/64 (7/32)","15/64","17/64","18/64 (9/32)","19/64","20/64 (5/16)","21/64","22/64 (11/32)","23/64","25/64","26/64 (13/32)","27/64","28/64 (7/16)","29/64","30/64 (15/32)","31/64","33/64","34/64 (17/32)","35/64","36/64 (9/16)","37/64","38/64 (19/32)","39/64","40/64 (5/8)","41/64","42/64 (21/32)","43/64","44/64 (11/16)","45/64","46/64 (23/32)","47/64","49/64","50/64 (25/32)","51/64","52/64 (13/16)","53/64","54/64 (27/32)","55/64","56/64 (7/8)","57/64","58/64 (29/32)","59/64","60/64 (15/16)","61/64","62/64 (31/32)","63/64"],["ONCE","LOOP","SUST"],["OFF","ON"],["PRESET","GLOBAL"],["STOP","PAUSE","RUN"],["RUN","STOP"],["OFF","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","21","22","23","24","25","26","27","28","29","30","31","32"],["INPUT 1","INPUT 2"],["EXPONENTIAL","LINEAR"],["NONE","Pedal 1","Pedal 2","External 1","External 2","External 3","External 4","LFO A","LFO B","ADSR 1","Sequencer","Envelope","Pitch"],["OFF","SLOW SPD","MED SPD","FAST SPD","SLOW POS","MED POS","FAST POS"],["SLOW","MEDIUM","FAST"],["ALL","CHAN A","CHAN B","CHAN C","CHAN D"],["SRC1 + SRC2","SRC1 - SRC2","SRC1 x SRC2"],["Thru","Mute FX Out","Mute Out"],["HARD","MED-HARD","MEDIUM","MED-SOFT","SOFT"],["RMS","PEAK","RMS+PEAK","HALF-WAVE"],["BLOCK L+R","INPUT 1","BLOCK L","BLOCK R"],["VCA Modern Compressor","Econo-Dyno-Comp","Dynami-Comp Modern","Dynamics Processor","Optical Compressor","Vari-Mu Tube Compressor","Analog Compressor","Dynami-Comp Classic","JFET Studio Compressor","VCA FF Sustainer","VCA Bus Compressor","VCA FB Sustainer","Compander","VCA Classic Compressor","Analog Sustainer","JFET Pedal Compressor","Rockguy Compressor","Dynami-Comp Soft","Citrus Juicer"],["INSTRUMENT","LINE"],["NULL","LOWPASS","BANDPASS","HIGHPASS","LOWSHELF","HIGHSHELF","PEAKING","NOTCH","TILT EQ","LOWSHELF 2","HIGHSHELF 2","PEAKING 2"],["Thru","Mute"],["10 Band Constant Q","8 Band Constant Q","7 Band Constant Q","5 Band Constant Q","10 Band Variable Q","8 Band Variable Q","7 Band Variable Q","5 Band Variable Q","5 Band Passive","4 Band Passive","3 Band Passive","3 Band Console","10 Band 2/3 Oct Const Q","10 Band 2/3 Oct Var Q","5 Band Mark","4 Band JMPRE-1","7 Band Pedal","7 Band Bass Pedal"],["Shelving","Peaking","Blocking","Shelving 2","Peaking 2"],["Peaking","Shelving","Shelving 2","Peaking 2"],["Peaking","Peaking 2"],["6 dB/OCT","12 dB/OCT","18 dB/OCT","24 dB/OCT","30 dB/OCT","36 dB/OCT"],["Thru","Mute FX Out","Mute Out","Mute FX In","Mute In"],["Room, Small","Room, Medium","Room, Large","Hall, Small","Hall, Medium","Hall, Large","Chamber, Small","Chamber, Medium","Chamber, Large","Plate, Small","Plate, Medium","Plate, Large","Hall, St. George's Church","Hall, St. Albans Cathedral","Huge, York Minster","Spring, Small","Spring, Medium","Spring, Large","Huge, Cavern","Huge, Stone Quarry","Room, Studio","Ambience","Hall, Concert","Hall, Large Deep","Room, Recording Studio C","Hall, North Church","Hall, South Church","Plate, London","Plate, Sun","Room, Huge","Room, Drum","Room, Hallway","Hall, Tunnel","Chamber, Deep","Room, Large Wooden","Huge, Gymnasium","Hall, Asylum","Huge, Deep Space","Room, Recording Studio A","Room, Large Tiled","Plate, Vocal","Hall, Wide","Hall, Mechanic's","Hall, Chorus","Huge, Ice Castle","Hall, Music","Hall, Symphony","Cloud, Cirrocumulus","Cloud, Cumulonimbus","Cloud, Nimbostratus","Cloud, Stratocumulus","Spring, Deluxe","Hall, Opera House","Hall, Colosseum","SFX Sagittarius","SFX Gemini","SFX Capricorn","SFX Aquarius","SFX Andromeda","SFX Pegasus","SFX Centaurus","SFX Ursa Major","SFX Pleiades","Echo, Plate","Echo, Hall","Echo, Room","Spring, Tube","Spring, Studio","Spring, Vibrato-King","Spring, British","Echo, Fields of Pyrite","Plate, Gold","Echo, Pitch Plate","Hall, Marble","Huge, Mausoleum","Hall, Nashville Church","Huge, Warehouse","Spring, Lush","Spring, Vibrato-King Custom"],["ECONOMY","NORMAL","HIGH","ULTRA-HIGH"],["OFF","STACK","HOLD"],["L+R","LEFT","RIGHT"],["6 dB/OCT","12 dB/OCT"],["FORWARD","REVERSE","FOR/REV","REV/FOR"],["INPUT","MATRIX","FEEDBACK"],["PARALLEL","SERIES-PARALLEL"],["INPUT","OUTPUT"],["Digital Mono","Digital Stereo","Analog Mono","Analog Stereo","Mono Tape","Stereo Tape","Ping-Pong","Dual Delay","Reverse Delay","Sweep Delay","Ducking Delay","Vintage Digital","2290 w/ Modulation","Ambient Stereo","Deluxe Mind Guy","Mono BBD","Stereo BBD","Lo-Fi Tape","Stereo Mind Guy","Graphite Copy Delay","DM-Two Delay","Diffused Delay","Zephyr","Worn Tape","Pan Delay","Stereo Trem Delay","Wandering Delays","Dual Head Tape","Surround Delay"],["MONO","STEREO","PING-PONG","DUAL","REVERSE","SWEEP","TAPE","SURROUND"],["6 dB/OCT","12 dB/OCT","24 dB/OCT","36 dB/OCT","48 dB/OCT"],["NONE","RIGHT","LEFT","BOTH"],["BOTH","LEFT","RIGHT"],["LOW","HIGH"],["NONE","LEVEL","PAN","SPREAD"],["LOWPASS","BANDPASS","HIGHPASS"],["Quad-Tap Delay","Quad Parallel Delay","Quad Series Delay","Diffusor","Quad Tape Delay","Quad-Tap Band Delay"],["FEEDBACK","FEEDFORWARD"],["NULL","LOWPASS","BANDPASS","HIGHPASS","LOWSHELF","HIGHSHELF","PEAKING","NOTCH","TILT EQ"],["Quad Tap Delay","Quad Parallel Delay","Quad Series Delay","Diffusor Rhythmic","Quad Tape Delay","Quad Tap Band Delay","Tape Golden","Tape Ambience","Circular Delay","Comb Filter Delay","Filtered Mod Delay","Ringmod Delay","Rhythmic Bands","Chorus MTD","Diffusor Smooth","Chorus 1210","Chorus Aerosol","PCM Circular","PCM Pan","Allan H. Short","Allan H. Long","Allan H. Swells","Ya-Ya Delay","L-C-R-C Delay","Tape Space","Shadow Taps 1","Shadow Taps 2","Swing Ping","Tape Echo","Aurora Delay","Son of Bin Echo","Viable Delay","Diffusor Space","Kilimanjaro","Camera Obscura","Strange Things","Matterhorn","Centaurus X-3"],["Plex Delay","Plex Detune","Plex Shift","Plex Verb","Shimmer Verb"],["NONE ","1/64 TRIP","1/64","1/64 DOT","1/32 TRIP","1/32","1/32 DOT","1/16 TRIP","1/16","1/16 DOT","1/8 TRIP","1/8","1/8 DOT","1/4 TRIP","1/4","1/4 DOT","1/2 TRIP","1/2","1/2 DOT","1 TRIP","1","1 DOT","2","3","4","4/3","5/4","5/64","7/64","9/64","10/64 (5/32)","11/64","13/64","14/64 (7/32)","15/64","17/64","18/64 (9/32)","19/64","20/64 (5/16)","21/64","22/64 (11/32)","23/64","25/64","26/64 (13/32)","27/64","28/64 (7/16)","29/64","30/64 (15/32)","31/64","33/64","34/64 (17/32)","35/64","36/64 (9/16)","37/64","38/64 (19/32)","39/64","40/64 (5/8)","41/64","42/64 (21/32)","43/64","44/64 (11/16)","45/64","46/64 (23/32)","47/64","49/64","50/64 (25/32)","51/64","52/64 (13/16)","53/64","54/64 (27/32)","55/64","56/64 (7/8)","57/64","58/64 (29/32)","59/64","60/64 (15/16)","61/64","62/64 (31/32)"],["FORWARD","REVERSE"],["Plex Delay","Plex Detune","Plex Shift","Plex Verb","Shimmer Verb","Discrete Echoes","Econo Shimmer","Econo Shimmer 2","Ganymede","Golden Delay","Golden Detune","Golden Shimmer","Celestial Shimmer","Critters","Subtone Shimmer","Granular Echoes","Gritty Shimmer","Helium Shimmer","Lunar Sweeps","Mod Wash","Scintillation","Cacophonizer","The Cytherians","Ambient Depths","Dancing Detune","Detuned Space","Detuned Space 2","Dissolving 16ths","Delay Swell","Demi-Semi Delay","Echo Hall","Gnome Shifter","Bronze Harps","Gold Harps","Intrigue","Melting Delays","Occult Verb 1","Occult Verb 2","Ping-Pong Reverse","Plex Tape Echoes","Reverse Oct 4","Reverse Oct 8","Reverse Plex","Sirocco","Sample/Hold Delay"],["OFF","SINE","TRIANGLE","SQUARE","SAW UP","SAW DOWN","RANDOM","LOG","EXP","TRAPEZOID","ASTABLE"],["Digital Mono","Digital Stereo","Analog Mono","Analog Stereo","Japan CE-2","Warm Stereo","80'S Style","Triangle Chorus","8-Voice Stereo","Tape Chorus","Dimension 1","Dimension 2","Dimension 3","4-Voice Analog","8-Voice Analog","Stereo Tri-Chorus","Dual Chorus","Tape Flanger","Vibrato","Japan CE-1 Vibrato","Japan CE-1 Chorus","Japan CH-1","MX234","Small Copy","Japan CE-2 Bass","Rockguy","MX134 Stereo"],["OFF","LOW","HIGH"],["OFF","LOW","MED","HIGH"],["Digital Mono","Digital Stereo","Analog Mono","Analog Stereo","Thru-Zero","Stereo Jet","Zero Flanger","Pop Flanger","MXF-117","BBF-2","Electric Mystery","Deluxe Mystery","D/AD 185","Manual Thru-Zero Flanger","Step Flanger","FAS Flanger","Binary Flange","Cancel Flange","Count of Flanging","Cuda Flange","Harmonoflange","Hemisflange","Lofty Flange","Melodic Flange","80's Rack Flanger","Scion Stereo Flange","Spirit Flange","Starship Flanger","Trippy Flanger","Tubular","Vowel Flanger","Manual Cancel Flanger"],["OFF","AUTO","MANUAL (SET DEPTH TO 0)"],["OFF","0 DEG","90 DEG","180 DEG","270 DEG"],["LINEAR","EXPONENTIAL","SQUARE-LAW"],["Digital Mono","Digital Stereo","Script 45","Script 90","Block 90","Classic Vibe","Stereo 8-Stage","Barber Pole","Stripe 90","Naughty Rock","FAS Vibe","Treadle Phaser","Virtuoso Phaser","Borg Phaser","Ultra-Super-Mega Phaser","Mutated Twin-Phaser","Modern Vibe"],["2","4","6","8","10","12"],["NORMAL","VIBE","BARBERPOLE"],["UP","DOWN"],["LINEAR","EXPONENTIAL","JFET","PHOTOCELL"],["NORMAL","UNIVIBE"],["FAS Wah","Clyde","Cry Babe","VX846","Color-Tone","Funk Wah","Mortal","VX845","Paragon"],["LINEAR","LOG 30A","LOG 20A","LOG 15A","LOG 10A","LOG 5A"],["AAA","EEE","III","OHH","OOO","EHH","AHH","AWW","UHH","ERR"],["VCA Trem","Panner","Bias Trem","Harmonic Trem","Optical Trem 1","Optical Trem 2","Neon Trem"],["6 dB/oct","12 dB/oct","24 dB/oct"],["Detune Dual","Detune Quad","Fixed Shift Dual","Fixed Shift Quad","Intelligent Shift Dual","Intelligent Shift Quad","Whammy Classic","Octave Divider","Crystal Echoes","Whammy Advanced","Arpeggiator","Custom Shifter","Virtual Capo","Crystal Shimmer","Fixed Shift Single","Intelligent Shift Single","Octave Polygen 1","Octave Polygen 2"],["UP 1 OCT","DOWN 1 OCT","UP 2 OCT","DOWN 2 OCT","UP|DN 1 OCT","UP|DN 2 OCT"],["-25","-24","-23","-22","-21","-20","-19","-18","-17","-16","-15","-14","-13","-12","-11","-10","-9","-8","-7","-6","-5","-4","-3","-2","1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","21","22","23","24","25"],["A ","A#/Bb","B ","C ","C#/Db","D ","D#/Eb","E ","F ","F#/Gb","G ","G#/Ab"],["MAJOR (Ionian)","DORIAN","PHRYGIAN","LYDIAN","MIXOLYDIAN","MINOR (Aeolian)","LOCRIAN","MELODIC MIN","HARMONIC MIN","DIMINISH 1/2-1","WHOLE TONE","DOMINANT 7","DIMINISH 1-1/2","PENTA. MAJ","PENTA. MIN","BLUES","CHROMATIC"],["SMOOTH","STEPPED"],["NOTES","CHORDS"],["LINEAR","HANN"],["DUAL","BOTH","PING-PONG"],["1/64 TRIP","1/64","1/64 DOT","1/32 TRIP","1/32","1/32 DOT","1/16 TRIP","1/16","1/16 DOT","1/8 TRIP","1/8","1/8 DOT","1/4 TRIP","1/4","1/4 DOT","1/2 TRIP","1/2","1/2 DOT","1 TRIP","1","1 DOT","2","3","4","4/3","5/4","5/64","7/64","9/64","10/64 (5/32)","11/64","13/64","14/64 (7/32)","15/64","17/64","18/64 (9/32)","19/64","20/64 (5/16)","21/64","22/64 (11/32)","23/64","25/64","26/64 (13/32)","27/64","28/64 (7/16)","29/64","30/64 (15/32)","31/64","33/64","34/64 (17/32)","35/64","36/64 (9/16)","37/64","38/64 (19/32)","39/64","40/64 (5/8)","41/64","42/64 (21/32)","43/64","44/64 (11/16)","45/64","46/64 (23/32)","47/64","49/64","50/64 (25/32)","51/64","52/64 (13/16)","53/64","54/64 (27/32)","55/64","56/64 (7/8)","57/64","58/64 (29/32)","59/64","60/64 (15/16)","61/64","62/64 (31/32)","63/64"],["CONSTANT","INCREASING","DECREASING","UP / DOWN","DOWN / UP","SINE"],["BLOCK IN","INPUT 1"],["MONO","STEREO"],["INDIVIDUAL","SUMMED"],["EQUAL","JUST"],["Null","Low-Pass","Band-Pass","High-Pass","Low-Shelf","High-Shelf","Peaking","Notch","Tilt EQ","Low-Shelf 2","High-Shelf 2","Peaking 2","Feedforward Comb","Feedback Comb","All-Pass","Envelope Filter","Auto-Wah","Touch-Wah"],["2nd","4th"],["LOWPASS","BANDPASS","HIGHPASS","MIX"],["BLOCK IN","MAIN IN"],["Rat Distortion","PI Fuzz","Tube Drive 3-Knob","Super OD","Treble Boost","Mid Boost","T808 OD","Fat Rat","T808 Mod","Octave Distortion","Plus Distortion","Hard Fuzz","FET Boost","Tape Distortion","Full OD","Blues OD","Shred Distortion","M-Zone Distortion","Bender Fuzz","BB Pre","Master Fuzz","Face Fuzz","Bit Crusher","Eternal Love","Esoteric ACB","Esoteric RCB","Zen Master","Tube Drive 4-Knob","FAS LED-Drive","SDD Preamp","FET Preamp","Suhr Riot","Micro Boost","FAS Boost","Timothy","Shimmer Drive","Blackglass 7K","Tone of Kings","Heartpedal 11","Jam Ray","OD 250","TS9DX +","Box o' Crunch","OD 250 Gray","Horizon Precision Drive","Compulsion Distortion","Hoodoo Drive","TS9DX Hot","DS1 Distortion","DS1 Distortion Mod","MCMLXXXI Drive","Sonic Drive","Valve Screamer VS9","Maxoff 808","Klone Chiron","Esoteric Bass RCB","BB Pre AT","Griddle Cake","Bosom Boost","OD-One Overdrive","Nobelium OVD-1","Sunrise Splendor","Gauss Drive","Integral Pre","Colortone Booster","Colortone OD","MOSFET Distortion","Super Fuzz","Tube Drive 5-Knob","77 Custom OD","Angry Chuck","Guardian Photon Speed","Paradigm Shifter","PI Fuzz - Bass","NoAmp Bass DI","NoAmp Bass Pre","Royal Bass DI","Swedish Metal"],["LV TUBE","HARD","SOFT","GERMANIUM","FW RECT","HV TUBE","SILICON","4558/DIODE","LED","FET","OP-AMP","VARIABLE","CMOS","NULL"],["OFF","POST","PRE"],["1N270A","1N34A","1N4148","1N914","1N916","FO215","1N4001","BAT41","1S1588","1SS133","MA150","RED LED","GREEN LED","BLUE LED","WHITE LED","FET","D9E","D18","1S1588T","1N5819","YELLOW LED","1S2473"],["NA"],["Modern","Classic","Stereoizer"],["SINE","TRIANGLE","SQUARE","SAWTOOTH","RANDOM","WHT NOISE","PINK NOISE","OFF"],["OFF","ENV ONLY","PITCH+ENV","QUANTIZE"],["GUITAR","BASS"],["EXP/LOG","SIGMOID","COSINE","SINE"],["CONSTANT","INCREASING","DECREASING","UP / DOWN","DOWN / UP","COSINE","SINE"],["Reverb Pre-Swell","Ping-Pong Echo Verb","Diffusion Swirl","Decepticons","Reverse Reverb Echo","Lazer Zaps","Creaky","Tap Verb Plush","Tap Verb Grit","Bounce","Bounce Reverse","Motion Echoes","Staccato Spread","Tank Taps","Serpentine Swells","Late Bloomer","Brute Force Reverb","Megaverb","Gated Reverb","Take Five","Diffused Ping-Pong Echo","Echo Room"],["Classic Expander","Classic Gate","Modern Gate","Modern Expander"],["RMS","PEAK"],["CLASSIC","SSB UPPER","SSB LOWER"],["Manual","Chordal"],["MAJOR","MAJOR 6","DOMINANT 7","MAJOR 7","MINOR","MINOR 6","MINOR 7","DIMINISHED","AUGMENTED"],["PRE","POST"],["LINEAR","LOG 30A","LOG 20A","LOG 15A","LOG 10A","LOG 5A","S-TAPER"],["STEREO","LEFT ONLY","RIGHT ONLY"],["Volume","Auto-Swell"],["AUTO: ","1M","1M+CAP","230K","230K+CAP","90K","90K+CAP","70K","70K+CAP","32K","32K+CAP","22K","22K+CAP"],["CLASSIC","INTELLIGENT","NOISE REDUCER"],["EASY","ADVANCED"],["USER"],["STEREO","LEFT","RIGHT","SUM L+R"],["MAX","1024","512","256"],["PARALLEL","SERIES"],["--","MUTE"],["--"],["Series","Parallel"],["A","B","C","D"],["DISABLED","0 PRE / 4 POST","1 PRE / 3 POST","2 PRE / 2 POST","3 PRE / 1 POST","4 PRE / 0 POST"]],"effs":{"2":[[0,"",0,0,0,1,10,0.001,-1],[1,"",0,0,0,1,10,0.001,-1],[2,"",0,0,0,1,10,0.001,-1],[3,"",0,0,0,1,10,0.001,-1],[4,"",0,0,0,1,10,0.001,-1],[5,"",0,0,0,1,10,0.001,-1],[6,"",0,0,0,1,10,0.001,-1],[7,"",0,0,0,1,10,0.001,-1],[8,"",0,0,0,1,10,0.001,-1],[9,"",0,0,0,1,10,0.001,-1],[10,"LFO Type",1,16,0,9,1,0,0],[11,"Rate",1,66,0.05,30,1,0,-1],[12,"Depth",1,53,0,0.5,200,0.0005,-1],[13,"Duty Cycle",1,53,0.01,0.99,100,0.001,-1],[14,"Output B Phase",1,54,0,3.14159,57.2958,0.00314159,-1],[15,"Tempo",1,16,0,78,1,0,1],[16,"ADSR Mode",1,16,0,2,1,0,2],[17,"Retrigger",1,16,0,1,1,0,3],[18,"Attack",1,68,0.001,10,1000,0,-1],[19,"Decay",1,68,0.001,10,1000,0,-1],[20,"Sustain",1,68,0.001,10,1000,0,-1],[21,"Sustain Level",1,53,0,1,100,0.001,-1],[22,"Release",1,68,0.001,10,1000,0,-1],[23,"Threshold",1,49,-80,20,1,0.1,-1],[24,"Attack",1,68,0.001,10,1000,0,-1],[25,"Release",1,68,0.001,10,1000,0,-1],[26,"Threshold",1,49,-80,20,1,0.1,-1],[27,"Gain",1,48,1,4,1,0.01,-1],[28,"Tempo",1,42,24,250,1,0,-1],[29,"Tempo To Use",1,16,0,1,1,0,4],[30,"Rate",1,66,1,30,1,0,-1],[31,"Tempo",1,16,0,78,1,0,1],[32,"Stages",1,16,2,32,1,0,-1],[33,"Type",1,16,0,2,1,1,5],[34,"1",1,53,0,1,100,0.001,-1],[35,"2",1,53,0,1,100,0.001,-1],[36,"3",1,53,0,1,100,0.001,-1],[37,"4",1,53,0,1,100,0.001,-1],[38,"5",1,53,0,1,100,0.001,-1],[39,"6",1,53,0,1,100,0.001,-1],[40,"7",1,53,0,1,100,0.001,-1],[41,"8",1,53,0,1,100,0.001,-1],[42,"9",1,53,0,1,100,0.001,-1],[43,"10",1,53,0,1,100,0.001,-1],[44,"11",1,53,0,1,100,0.001,-1],[45,"12",1,53,0,1,100,0.001,-1],[46,"13",1,53,0,1,100,0.001,-1],[47,"14",1,53,0,1,100,0.001,-1],[48,"15",1,53,0,1,100,0.001,-1],[49,"16",1,53,0,1,100,0.001,-1],[50,"17",1,53,0,1,100,0.001,-1],[51,"18",1,53,0,1,100,0.001,-1],[52,"19",1,53,0,1,100,0.001,-1],[53,"20",1,53,0,1,100,0.001,-1],[54,"21",1,53,0,1,100,0.001,-1],[55,"22",1,53,0,1,100,0.001,-1],[56,"23",1,53,0,1,100,0.001,-1],[57,"24",1,53,0,1,100,0.001,-1],[58,"25",1,53,0,1,100,0.001,-1],[59,"26",1,53,0,1,100,0.001,-1],[60,"27",1,53,0,1,100,0.001,-1],[61,"28",1,53,0,1,100,0.001,-1],[62,"29",1,53,0,1,100,0.001,-1],[63,"30",1,53,0,1,100,0.001,-1],[64,"31",1,53,0,1,100,0.001,-1],[65,"32",1,53,0,1,100,0.001,-1],[66,"Run/Stop",1,16,0,1,1,1,6],[67,"Scene1 val1",1,53,0,1,100,0.001,-1],[68,"Scene1 val2",1,53,0,1,100,0.001,-1],[69,"Scene1 val3",1,53,0,1,100,0.001,-1],[70,"Scene1 val4",1,53,0,1,100,0.001,-1],[71,"Scene2 val1",1,53,0,1,100,0.001,-1],[72,"Scene2 val2",1,53,0,1,100,0.001,-1],[73,"Scene2 val3",1,53,0,1,100,0.001,-1],[74,"Scene2 val4",1,53,0,1,100,0.001,-1],[75,"Scene3 val1",1,53,0,1,100,0.001,-1],[76,"Scene3 val2",1,53,0,1,100,0.001,-1],[77,"Scene3 val3",1,53,0,1,100,0.001,-1],[78,"Scene3 val4",1,53,0,1,100,0.001,-1],[79,"Scene4 val1",1,53,0,1,100,0.001,-1],[80,"Scene4 val2",1,53,0,1,100,0.001,-1],[81,"Scene4 val3",1,53,0,1,100,0.001,-1],[82,"Scene4 val4",1,53,0,1,100,0.001,-1],[83,"Quantize",1,16,1,32,1,1,7],[84,"Adsr1source",1,16,0,1,1,1,8],[85,"Envsource",1,16,0,1,1,1,8],[86,"Env gainmonitor",1,256,0,1,0,0,-1],[87,"Damping Time",1,68,0.001,1,1000,0,-1],[88,"Low Cut",1,66,20,2000,1,0,-1],[89,"High Cut",1,66,200,20000,1,0,-1],[90,"Shape",1,53,0.001,0.999,100,0.001,-1],[91,"High Cut",1,66,0.5,50,1,0,-1],[92,"Adsr1 xmark",1,0,0,0,0,0,-1],[93,"Run",1,0,0,0,0,0,-1],[94,"Step",1,16,0,1,1,1,-1],[95,"",0,16,0,1,1,0,9],[96,"",0,16,0,1,1,0,3],[97,"",0,16,0,1,1,0,3],[98,"",0,16,0,1,1,0,3]],"3":[[0,"",0,0,0,1,10,0.001,-1],[1,"",0,0,0,1,10,0.001,-1],[2,"",0,0,0,1,10,0.001,-1],[3,"",0,0,0,1,10,0.001,-1],[4,"",0,0,0,1,10,0.001,-1],[5,"",0,0,0,1,10,0.001,-1],[6,"",0,0,0,1,10,0.001,-1],[7,"",0,0,0,1,10,0.001,-1],[8,"",0,0,0,1,10,0.001,-1],[9,"",0,0,0,1,10,0.001,-1],[10,"Source",1,16,0,12,1,0,10],[11,"Min",1,0,0,0,0,0,-1],[12,"Max",1,0,0,0,0,0,-1],[13,"Start",1,53,0,1,100,0.001,-1],[14,"Mid",1,53,0,1,100,0.001,-1],[15,"End",1,53,0,1,100,0.001,-1],[16,"Slope",1,53,0,1,100,0.001,-1],[17,"Attack",1,52,0,10,1000,0.001,-1],[18,"Effectid",1,16,0,208,1,0,-1],[19,"Param",1,0,0,0,0,0,-1],[20,"Auto Engage",1,16,0,6,1,0,11],[21,"PC Reset",1,16,0,1,1,0,3],[22,"Off Value",1,53,0.05,0.95,100,0.001,-1],[23,"Scale",1,64,0.1,10,1,0,-1],[24,"Offset",1,53,-1,1,100,0.002,-1],[25,"Release",1,52,0,10,1000,0.001,-1],[26,"Update Rate",1,16,0,2,1,0,12],[27,"Channel",1,16,0,4,1,0,13],[28,"Xmark",1,0,0,0,0,0,-1],[29,"Ymark",1,0,0,0,0,0,-1],[30,"Ctrlid2",1,16,0,12,1,0,10],[31,"Scale1",1,53,0,1,100,0.001,-1],[32,"Scale2",1,53,0,1,100,0.001,-1],[33,"Operation",1,16,0,2,1,0,14],[34,"",0,16,0,1,1,0,9]],"7":[[0,"Level",1,129,-20,20,1,0.1,-1],[1,"Mix",1,117,0,1,100,0.001,-1],[2,"Balance",1,144,-1,1,100,0.002,-1],[3,"Bypass",1,224,0,1,1,0,-1],[4,"Bypass Mode",1,160,0,2,1,0,15],[5,"Globalmix",1,208,0,0,0,0,-1],[6,"Sceneignore",1,16,0,1,1,0,3],[7,"",0,0,0,1,10,0.001,-1],[8,"",0,0,0,1,10,0.001,-1],[9,"",0,0,0,1,10,0.001,-1],[10,"Threshold",1,97,-60,20,1,0.1,-1],[11,"Ratio",1,64,1,20,1,0.01,-1],[12,"Attack",1,68,0.0001,0.1,1000,0,-1],[13,"Release",1,68,0.002,2,1000,0,-1],[14,"Knee",1,16,0,4,0,0,16],[15,"Auto Makeup",1,16,0,1,0,0,3],[16,"Detector Type",1,16,0,3,0,0,17],[17,"Low Cut",1,66,20,2000,1,0,-1],[18,"Sidechain Source",1,16,0,3,0,0,18],[19,"Type",1,16,0,18,0,0,19],[20,"Compression",1,48,0,1,10,0.001,-1],[21,"Look-Ahead Time",1,52,0,0.002,1000,0.0000208333,-1],[22,"Auto Att/Rel",1,16,0,1,0,0,3],[23,"Emphasis",1,48,0,1,20,0.0005,-1],[24,"Dynamics",1,48,-1,1,10,0.002,-1],[25,"Input Level",1,16,0,1,0,0,20],[26,"High Cut",1,66,200,20000,1,0,-1],[27,"Gain",1,49,-12,12,1,0.05,-1],[28,"Frequency",1,66,100,10000,1,0,-1],[29,"Q",1,64,0.1,10,1,0,-1],[30,"Light Type",1,0,0,0,0,0,-1],[31,"Gain",1,0,0,0,0,0,-1],[32,"Filter Type",1,16,0,11,1,0,21],[33,"Threshold",1,97,-60,20,1,0.1,-1],[34,"Xmark",1,0,0,0,0,0,-1],[35,"Ymark",1,0,0,0,0,0,-1],[36,"Ratio",1,64,1,10,1,0.01,-1],[37,"Time",1,68,0.001,1,1000,0,-1],[38,"Transients",1,48,-1,1,10,0.002,-1],[39,"Emphasis Freq",1,66,100,10000,1,0,-1],[40,"Tone",1,48,0,1,10,0.001,-1],[41,"",0,48,0,1,10,0.001,-1]],"8":[[0,"Level",1,129,-80,20,1,0.1,-1],[1,"Mix",1,117,0,1,100,0.001,-1],[2,"Balance",1,144,-1,1,100,0.002,-1],[3,"Bypass",1,224,0,1,1,0,-1],[4,"Bypass Mode",1,176,0,1,1,0,22],[5,"Globalmix",1,208,0,0,0,0,-1],[6,"Sceneignore",1,16,0,1,1,0,3],[7,"",0,0,0,1,10,0.001,-1],[8,"",0,0,0,1,10,0.001,-1],[9,"",0,0,0,1,10,0.001,-1],[10,"Low",1,48,-12,12,1,0.025,-1],[11,"Low&#10;Mid",1,48,-12,12,1,0.025,-1],[12,"Mid",1,48,-12,12,1,0.025,-1],[13,"High&#10;Mid",1,48,-12,12,1,0.025,-1],[14,"1.6K",1,48,-12,12,1,0.025,-1],[15,"1k",1,48,-12,12,1,0.025,-1],[16,"2k",1,48,-12,12,1,0.025,-1],[17,"4k",1,48,-12,12,1,0.025,-1],[18,"8k",1,48,-12,12,1,0.025,-1],[19,"16k",1,48,-12,12,1,0.025,-1],[20,"Type",1,16,0,17,1,0,23],[21,"",0,64,0.1,10,1,0,-1],[22,"",0,0,0,0,0,0,-1]],"9":[[0,"Level",1,129,-80,20,1,0.1,-1],[1,"Mix",1,117,0,1,100,0.001,-1],[2,"Balance",1,144,-1,1,100,0.002,-1],[3,"Bypass",1,224,0,1,1,0,-1],[4,"Bypass Mode",1,176,0,1,1,0,22],[5,"Globalmix",1,208,0,0,0,0,-1],[6,"Sceneignore",1,16,0,1,1,0,3],[7,"",0,0,0,1,10,0.001,-1],[8,"",0,0,0,1,10,0.001,-1],[9,"",0,0,0,1,10,0.001,-1],[10,"Frequency",1,66,20,2000,1,0,-1],[11,"Frequency",1,66,100,10000,1,0,-1],[12,"Frequency",1,66,100,10000,1,0,-1],[13,"Frequency",1,66,100,10000,1,0,-1],[14,"Frequency",1,66,200,20000,1,0,-1],[15,"Q",1,64,0.1,10,1,0,-1],[16,"Q",1,64,0.1,10,1,0,-1],[17,"Q",1,64,0.1,10,1,0,-1],[18,"Q",1,64,0.1,10,1,0,-1],[19,"Q",1,64,0.1,10,1,0,-1],[20,"Gain",1,49,-20,20,1,0.05,-1],[21,"Gain",1,49,-20,20,1,0.05,-1],[22,"Gain",1,49,-20,20,1,0.05,-1],[23,"Gain",1,49,-20,20,1,0.05,-1],[24,"Gain",1,49,-20,20,1,0.05,-1],[25,"Type",1,16,0,4,1,0,24],[26,"Type",1,16,0,3,1,0,25],[27,"Type",1,16,0,1,1,0,26],[28,"Type",1,16,0,3,1,0,25],[29,"Type",1,16,0,4,1,0,24],[30,"Solo",1,16,0,1,1,0,3],[31,"Solo",1,16,0,1,1,0,3],[32,"Solo",1,16,0,1,1,0,3],[33,"Solo",1,16,0,1,1,0,3],[34,"Solo",1,16,0,1,1,0,3],[35,"Slope",1,16,0,5,1,0.001,27],[36,"",0,16,0,5,1,0.001,27]],"12":[[0,"Level",1,129,-80,20,1,0.1,-1],[1,"Mix",1,117,0,1,100,0.001,-1],[2,"Balance",1,144,-1,1,100,0.002,-1],[3,"Bypass",1,224,0,1,1,0,-1],[4,"Bypass Mode",1,192,0,4,1,0,28],[5,"Globalmix",1,208,0,0,0,0,-1],[6,"Sceneignore",1,16,0,1,1,0,3],[7,"",0,16,0,1,1,0,3],[8,"",0,0,0,1,10,0.001,-1],[9,"",0,0,0,1,10,0.001,-1],[10,"Type",1,16,0,78,1,0,29],[11,"Time",1,51,0.1,100,1,0.02,-1],[12,"High Cut",1,66,200,20000,1,0,-1],[13,"High Decay",1,64,0.01,1,1,0.001,-1],[14,"Scattering",1,53,0,1,100,0.001,-1],[15,"Size",1,48,0.01,1,100,0.001,-1],[16,"Reverbdelay",1,52,0,0.25,1000,0.001,-1],[17,"Early Level",1,97,-40,10,1,0.05,-1],[18,"Late Level",1,97,-40,10,1,0.05,-1],[19,"Pre-Delay Time",1,52,0,1,1000,0.00025,-1],[20,"Low Cut",1,66,20,2000,1,0,-1],[21,"Depth",1,53,0,1,100,0.001,-1],[22,"Rate",1,66,0.01,1,1,0,-1],[23,"Input Gain",1,53,0,1,100,0.001,-1],[24,"Density",1,16,4,8,1,0,-1],[25,"Diffusion",1,53,0,1,100,0.001,-1],[26,"Diffusion Time",1,53,0,1,100,0.001,-1],[27,"Number of Springs",1,16,2,6,1,0,-1],[28,"Spring Tone",1,48,0,1,10,0.001,-1],[29,"Pickup Spacing",1,48,0,1,200,0.001,-1],[30,"Frequency 1",1,66,20,2000,1,0,-1],[31,"Frequency 2",1,66,100,10000,1,0,-1],[32,"Q 1",1,64,0.1,10,1,0,-1],[33,"Q 2",1,64,0.1,10,1,0,-1],[34,"Gain 1",1,49,-12,12,1,0.05,-1],[35,"Gain 2",1,49,-12,12,1,0.05,-1],[36,"Spring Drive",1,80,0.01,1,10,0.001,-1],[37,"Low Decay",1,64,0.02,2,1,0,-1],[38,"Xover Frequency",1,66,100,10000,1,0,-1],[39,"Stereo Spread",1,53,-2,2,100,0.002,-1],[40,"Attenuation",1,49,0,80,1,0.1,-1],[41,"Threshold",1,49,-80,20,1,0.1,-1],[42,"Release Time",1,68,0.001,1,1000,0,-1],[43,"Early Diffusion",1,53,0,1,100,0.001,-1],[44,"Early Diff Time",1,53,0,1,100,0.001,-1],[45,"Early Decay",1,53,0,2,100,0.002,-1],[46,"Late Input Mix",1,53,0,1,100,0.001,-1],[47,"Quality",1,16,0,3,1,0,30],[48,"Stack/Hold",1,16,0,2,1,1,31],[49,"Basetype",1,16,0,8,1,1,-1],[50,"LFO Phase",1,54,0,3.14159,57.2958,0.00314159,-1],[51,"Input Select",1,16,0,2,1,0,32],[52,"Drip",1,53,0,1,100,0.001,-1],[53,"Low Cut Slope",1,16,0,1,1,0,33],[54,"High Cut Slope",1,16,0,1,1,0,33],[55,"Pitch Mix",1,53,0,1,100,0.001,-1],[56,"Voice 1 Shift",1,16,-24,24,1,1,-1],[57,"Voice 2 Shift",1,16,-24,24,1,1,-1],[58,"Pitch Feedback",1,53,0,1,100,0.001,-1],[59,"Pitch Direction",1,16,0,3,1,1,34],[60,"Splice Time",1,52,0.01,2,1000,0.001,-1],[61,"Pitch Position",1,16,0,2,1,1,35],[62,"Pitch Modulation",1,53,0,1,100,0.001,-1],[63,"Voice Balance",1,53,-1,1,100,0.002,-1],[64,"Tempo",1,16,0,78,1,0,1],[65,"Feedback",1,53,0,1,100,0.001,-1],[66,"Echo Mix",1,53,0,1,100,0.001,-1],[67,"Pitch High Cut",1,66,200,20000,1,0,-1],[68,"Tank Type",1,16,0,1,1,0,36],[69,"Tonetype",1,16,0,3,1,0,-1],[70,"Tap",1,16,0,1,1,0,37],[71,"Low Cut Q",1,64,0.1,10,1,0,-1],[72,"",0,64,0.1,10,1,0,-1]],"13":[[0,"Level",1,129,-80,20,1,0.1,-1],[1,"Mix",1,117,0,1,100,0.001,-1],[2,"Balance",1,144,-1,1,100,0.002,-1],[3,"Bypass",1,224,0,1,1,0,-1],[4,"Bypass Mode",1,192,0,4,1,0,28],[5,"Globalmix",1,208,0,0,0,0,-1],[6,"Sceneignore",1,16,0,1,1,0,3],[7,"",0,16,0,1,1,0,3],[8,"",0,0,0,1,10,0.001,-1],[9,"",0,0,0,1,10,0.001,-1],[10,"Model",1,16,0,28,1,0,38],[11,"Type",1,16,0,7,1,0,39],[12,"Time",1,52,0.001,8,1000,0.001,-1],[13,"L/R Time Ratio",1,53,0.01,1,100,0.001,-1],[14,"Feedback",1,53,-1,1,100,0.002,-1],[15,"Feedl",1,53,-1,1,100,0.002,-1],[16,"Feedback R",1,53,-1,1,100,0.002,-1],[17,"Echo Pan",1,48,-1,1,100,0.002,-1],[18,"Stereo Spread",1,53,-1,1,100,0.002,-1],[19,"Tempo",1,16,0,78,1,0,1],[20,"Low Cut",1,66,20,2000,1,0,-1],[21,"High Cut",1,66,200,20000,1,0,-1],[22,"Rate",1,66,0.1,10,1,0,-1],[23,"Rate",1,66,0.2,20,1,0,-1],[24,"Mod Depth",1,53,0,1,100,0.001,-1],[25,"Mod Depth",1,53,0,1,100,0.001,-1],[26,"Drive",1,80,0.05,50,10,0.001,-1],[27,"Input Gain",1,53,0,1,100,0.001,-1],[28,"LFO Type",1,16,0,9,1,0,0],[29,"LFO Type",1,16,0,9,1,0,0],[30,"Time R",1,52,0.001,8,1000,0.001,-1],[31,"Stack/Hold",1,16,0,2,1,1,31],[32,"Master Feedback",1,53,0,2,100,0.001,-1],[33,"Tempo R",1,16,0,78,1,0,1],[34,"Rotation",1,53,-1,1,100,0.002,-1],[35,"Feedrl",1,53,-1,1,100,0.002,-1],[36,"Level L",1,53,0,1,100,0.001,-1],[37,"Level R",1,53,0,1,100,0.001,-1],[38,"Pan L",1,48,-1,1,100,0.002,-1],[39,"Pan R",1,48,-1,1,100,0.002,-1],[40,"LFO Phase",1,54,0,3.14159,57.2958,0.00314159,-1],[41,"LFO Phase",1,54,0,3.14159,57.2958,0.00314159,-1],[42,"Crossfade Time",1,52,0.001,0.255,1000,0.001,-1],[43,"Run",1,16,0,1,1,1,3],[44,"Trigger Restart",1,16,0,1,1,0,3],[45,"High Cut Slope",1,16,0,4,1,0,40],[46,"Ducking",1,49,0,80,1,0.1,-1],[47,"Threshold",1,49,-80,20,1,0.1,-1],[48,"Release",1,68,0.001,1,1000,0,-1],[49,"Diffuser",1,53,0,1,100,0.001,-1],[50,"Diffusion Time",1,53,0.01,1,100,0.001,-1],[51,"Phase Reverse",1,16,0,3,1,0,41],[52,"Target",1,16,0,2,1,0,42],[53,"Target",1,16,0,2,1,0,42],[54,"Tempo",1,16,0,78,1,0,1],[55,"Tempo",1,16,0,78,1,0,1],[56,"Sweep Rate",1,66,0.1,10,1,0,-1],[57,"Sweep LFO Type",1,16,0,9,1,0,0],[58,"Sweep Phase",1,54,0,3.14159,57.2958,0.00314159,-1],[59,"Sweep Tempo",1,16,0,78,1,0,1],[60,"Start Frequency",1,66,100,1000,1,0,-1],[61,"Stop Frequency",1,66,500,5000,1,0,-1],[62,"Resonance",1,80,0.2,20,10,0,-1],[63,"Q (High + Low)",1,64,0.1,10,1,0,-1],[64,"Bit Reduction",1,16,0,24,1,1,-1],[65,"Frequency 1",1,66,20,2000,1,0,-1],[66,"Frequency 2",1,66,100,10000,1,0,-1],[67,"Q 1",1,64,0.1,10,1,0,-1],[68,"Q 2",1,64,0.1,10,1,0,-1],[69,"Gain 1",1,49,-12,12,1,0.05,-1],[70,"Gain 2",1,49,-12,12,1,0.05,-1],[71,"Depth Range",1,16,0,1,1,0,43],[72,"Motor Speed",1,64,0.5,2,1,0,-1],[73,"Right Post Delay",1,52,0,0.1,1000,0.0001,-1],[74,"Low Cut Slope",1,16,0,4,1,0,40],[75,"Compander",1,16,0,1,1,0,3],[76,"Time",1,68,0.001,0.1,1000,0,-1],[77,"Threshold",1,97,-100,-20,1,0.05,-1],[78,"Master Time",1,69,0.25,4,100,0.001,-1],[79,"LFO Rate",1,66,0.1,10,1,0,-1],[80,"LFO Depth",1,53,0,1,100,0.001,-1],[81,"LFO Type",1,16,0,9,1,0,0],[82,"Rate",1,66,0.1,10,1,0,-1],[83,"Tempo",1,16,0,78,1,0,1],[84,"Mod Depth",1,53,0,1,100,0.001,-1],[85,"LFO Phase",1,54,0,3.14159,57.2958,0.00314159,-1],[86,"Target",1,16,0,3,1,0,44],[87,"Stack Feedback",1,53,0,1,100,0.001,-1],[88,"Hold Feedback",1,53,0,1,100,0.001,-1],[89,"",0,16,1,3,1,0,45]],"14":[[0,"Level",1,129,-80,20,1,0.1,-1],[1,"Mix",1,117,0,1,100,0.001,-1],[2,"Balance",1,144,-1,1,100,0.002,-1],[3,"Bypass",1,224,0,1,1,0,-1],[4,"Bypass Mode",1,192,0,4,1,0,28],[5,"Globalmix",1,208,0,0,0,0,-1],[6,"Sceneignore",1,16,0,1,1,0,3],[7,"",0,16,0,1,1,0,3],[8,"",0,0,0,1,10,0.001,-1],[9,"",0,0,0,1,10,0.001,-1],[10,"Basetype",1,16,0,5,1,0,46],[11,"Delay 1",1,52,0.001,2,1000,0.001,-1],[12,"Delay 2",1,52,0.001,2,1000,0.001,-1],[13,"Delay 3",1,52,0.001,2,1000,0.001,-1],[14,"Delay 4",1,52,0.001,2,1000,0.001,-1],[15,"Tempo 1",1,16,0,78,1,0,1],[16,"Tempo 2",1,16,0,78,1,0,1],[17,"Tempo 3",1,16,0,78,1,0,1],[18,"Tempo 4",1,16,0,78,1,0,1],[19,"Level 1",1,53,-1,1,100,0.001,-1],[20,"Level 2",1,53,-1,1,100,0.001,-1],[21,"Level 3",1,53,-1,1,100,0.001,-1],[22,"Level 4",1,53,-1,1,100,0.001,-1],[23,"Feedback 1",1,53,-1,1,100,0.002,-1],[24,"Feedback 2",1,53,-1,1,100,0.002,-1],[25,"Feedback 3",1,53,-1,1,100,0.002,-1],[26,"Feedback 4",1,53,-1,1,100,0.002,-1],[27,"Pan 1",1,48,-1,1,100,0.002,-1],[28,"Pan 2",1,48,-1,1,100,0.002,-1],[29,"Pan 3",1,48,-1,1,100,0.002,-1],[30,"Pan 4",1,48,-1,1,100,0.002,-1],[31,"LFO 1 Rate",1,66,0.1,10,1,0,-1],[32,"LFO 2 Rate",1,66,0.1,10,1,0,-1],[33,"LFO 1 Depth",1,53,0,1,100,0.001,-1],[34,"LFO 2 Depth",1,53,0,1,100,0.001,-1],[35,"LFO 1 Type",1,16,0,9,1,0,0],[36,"LFO 2 Type",1,16,0,9,1,0,0],[37,"LFO 1 Tempo",1,16,0,78,1,0,1],[38,"LFO 2 Tempo",1,16,0,78,1,0,1],[39,"LFO 1 Phase",1,54,0,3.14159,57.2958,0.00314159,-1],[40,"LFO 2 Phase",1,54,0,3.14159,57.2958,0.00314159,-1],[41,"Input Gain",1,53,0,1,100,0.001,-1],[42,"Diffusion Mix",1,53,0,1,100,0.001,-1],[43,"Diffusion Time",1,53,0,1,100,0.001,-1],[44,"Threshold",1,49,-80,20,1,0.1,-1],[45,"Time",1,53,0,1,100,0.001,-1],[46,"Level",1,53,0,1,100,0.001,-1],[47,"Pan",1,53,-1,1,100,0.001,-1],[48,"Filter Frequency",1,64,0.3162,3.162,1,0,-1],[49,"Filter Q",1,64,0.1,10,1,0,-1],[50,"Feedback",1,53,0,1,100,0.001,-1],[51,"LFO Rate",1,53,0.01,1,100,0.001,-1],[52,"LFO Depth",1,53,0,1,100,0.001,-1],[53,"Frequency 1",1,66,100,10000,1,0,-1],[54,"Frequency 2",1,66,100,10000,1,0,-1],[55,"Frequency 3",1,66,100,10000,1,0,-1],[56,"Frequency 4",1,66,100,10000,1,0,-1],[57,"Q 1",1,64,0.01,10,1,0,-1],[58,"Q 2",1,64,0.01,10,1,0,-1],[59,"Q 3",1,64,0.01,10,1,0,-1],[60,"Q 4",1,64,0.01,10,1,0,-1],[61,"Attenuation",1,49,0,80,1,0.1,-1],[62,"Motor Speed",1,64,0.5,2,1,0,-1],[63,"Feedback Send",1,256,0,3,0,0,-1],[64,"Feedback Return",1,256,0,0,0,0,-1],[65,"Low Cut",1,66,20,2000,1,0,-1],[66,"High Cut",1,66,200,20000,1,0,-1],[67,"Feedback",1,53,0,1,100,0.001,-1],[68,"Release Time",1,52,0.001,1,1000,0.001,-1],[69,"Drive",1,80,0.5,500,10,0.001,-1],[70,"Filter LFO Rate",1,66,0.1,10,1,0,-1],[71,"Filter LFO Depth",1,53,0,1,100,0.001,-1],[72,"Filter LFO Type",1,16,0,9,1,0,0],[73,"Filter LFO Tempo",1,16,0,78,1,0,1],[74,"Filter LFO Phase",1,54,0,3.14159,57.2958,0.00314159,-1],[75,"Threshold",1,49,-100,0,1,0.1,-1],[76,"Attack Time",1,68,0.01,10,1000,0,-1],[77,"Release Time",1,68,0.001,1,1000,0,-1],[78,"Comb Time",1,53,0,1,100,0.001,-1],[79,"Comb Depth",1,53,-1,1,100,0.002,-1],[80,"Filter Type",1,16,0,1,1,0,47],[81,"Time 1",1,52,0,0.04,1000,0.00001,-1],[82,"Time 2",1,52,0,0.04,1000,0.00001,-1],[83,"Time 3",1,52,0,0.04,1000,0.00001,-1],[84,"Time 4",1,52,0,0.04,1000,0.00001,-1],[85,"Feedback 1",1,53,-1,1,100,0.002,-1],[86,"Feedback 2",1,53,-1,1,100,0.002,-1],[87,"Feedback 3",1,53,-1,1,100,0.002,-1],[88,"Feedback 4",1,53,-1,1,100,0.002,-1],[89,"Ring Mod Freq",1,53,0,2,100,0.001,-1],[90,"Ring Mod Mix",1,53,0,1,100,0.001,-1],[91,"Frequency 1",1,48,0,2000,1,0.1,-1],[92,"Frequency2",1,48,0,2000,1,0.1,-1],[93,"Frequency 3",1,48,0,2000,1,0.1,-1],[94,"Frequency 4",1,48,0,2000,1,0.1,-1],[95,"Mix 1",1,53,0,1,100,0.001,-1],[96,"Mix 2",1,53,0,1,100,0.001,-1],[97,"Mix 3",1,53,0,1,100,0.001,-1],[98,"Mix 4",1,53,0,1,100,0.001,-1],[99,"Rate 1",1,66,0.1,10,1,0,-1],[100,"Rate 2",1,66,0.1,10,1,0,-1],[101,"Rate 3",1,66,0.1,10,1,0,-1],[102,"Rate 4",1,66,0.1,10,1,0,-1],[103,"Depth 1",1,53,0,1,100,0.001,-1],[104,"Depth 2",1,53,0,1,100,0.001,-1],[105,"Depth 3",1,53,0,1,100,0.001,-1],[106,"Depth 4",1,53,0,1,100,0.001,-1],[107,"Input Select",1,16,0,2,1,0,32],[108,"Chorus Rate",1,53,0.01,1,100,0.001,-1],[109,"Chorus Depth",1,53,0,1,100,0.001,-1],[110,"Type",1,16,0,8,1,0,48],[111,"Frequency",1,66,100,10000,1,0,-1],[112,"Q",1,64,0.01,10,1,0,-1],[113,"Gain",1,49,-12,12,1,0.05,-1],[114,"Low Cut Slope",1,16,0,5,1,0.001,27],[115,"High Cut Slope",1,16,0,5,1,0.001,27],[116,"LFO Rate",1,66,0.1,10,1,0,-1],[117,"Feedback Next",1,53,0,1,100,0.001,-1],[118,"LFO Depth",1,16,0,37,1,0,49],[119,"Feedback Next",1,53,-1,1,100,0.002,-1],[120,"Feedback Next",1,53,-1,1,100,0.002,-1],[121,"Feedback Next",1,53,-1,1,100,0.002,-1],[122,"",0,53,-1,1,100,0.002,-1]],"15":[[0,"Level",1,129,-80,20,1,0.1,-1],[1,"Mix",1,117,0,1,100,0.001,-1],[2,"Balance",1,144,-1,1,100,0.002,-1],[3,"Bypass",1,224,0,1,1,0,-1],[4,"Bypass Mode",1,192,0,4,1,0,28],[5,"Globalmix",1,208,0,0,0,0,-1],[6,"Sceneignore",1,16,0,1,1,0,3],[7,"",0,16,0,1,1,0,3],[8,"",0,0,0,1,10,0.001,-1],[9,"",0,0,0,1,10,0.001,-1],[10,"Basetype",1,16,0,4,0,0,50],[11,"Number of Delays",1,16,2,4,2,0,-1],[12,"Shift 1",1,16,-24,24,1,0,-1],[13,"Shift 2",1,16,-24,24,1,0,-1],[14,"Shift 3",1,16,-24,24,1,0,-1],[15,"Shift 4",1,16,-24,24,1,0,-1],[16,"Shift 5",1,16,-24,24,1,0,-1],[17,"Shift 6",1,16,-24,24,1,0,-1],[18,"Shift 7",1,16,-24,24,1,0,-1],[19,"Shift 8",1,16,-24,24,1,0,-1],[20,"Detune 1",1,55,-50,50,1,0.1,-1],[21,"Detune 2",1,55,-50,50,1,0.1,-1],[22,"Detune 3",1,55,-50,50,1,0.1,-1],[23,"Detune 4",1,55,-50,50,1,0.1,-1],[24,"Detune 5",1,55,-50,50,1,0.1,-1],[25,"Detune 6",1,55,-50,50,1,0.1,-1],[26,"Detune 7",1,55,-50,50,1,0.1,-1],[27,"Detune 8",1,55,-50,50,1,0.1,-1],[28,"Time 1",1,52,0.001,2,1000,0.001,-1],[29,"Time 2",1,52,0.001,2,1000,0.001,-1],[30,"Time 3",1,52,0.001,2,1000,0.001,-1],[31,"Time 4",1,52,0.001,2,1000,0.001,-1],[32,"Time 5",1,52,0.001,2,1000,0.001,-1],[33,"Time 6",1,52,0.001,2,1000,0.001,-1],[34,"Time 7",1,52,0.001,2,1000,0.001,-1],[35,"Time 8",1,52,0.001,2,1000,0.001,-1],[36,"Tempo 1",1,16,0,77,1,0,51],[37,"Tempo 2",1,16,0,77,1,0,51],[38,"Tempo 3",1,16,0,77,1,0,51],[39,"Tempo 4",1,16,0,77,1,0,51],[40,"Tempo 5",1,16,0,77,1,0,51],[41,"Tempo 6",1,16,0,77,1,0,51],[42,"Tempo 7",1,16,0,77,1,0,51],[43,"Tempo 8",1,16,0,77,1,0,51],[44,"Level 1",1,53,0,1,100,0.001,-1],[45,"Level 2",1,53,0,1,100,0.001,-1],[46,"Level 3",1,53,0,1,100,0.001,-1],[47,"Level 4",1,53,0,1,100,0.001,-1],[48,"Level 5",1,53,0,1,100,0.001,-1],[49,"Level 6",1,53,0,1,100,0.001,-1],[50,"Level 7",1,53,0,1,100,0.001,-1],[51,"Level 8",1,53,0,1,100,0.001,-1],[52,"Pan 1",1,53,-1,1,100,0.002,-1],[53,"Pan 2",1,53,-1,1,100,0.002,-1],[54,"Pan 3",1,53,-1,1,100,0.002,-1],[55,"Pan 4",1,53,-1,1,100,0.002,-1],[56,"Pan 5",1,53,-1,1,100,0.002,-1],[57,"Pan 6",1,53,-1,1,100,0.002,-1],[58,"Pan 7",1,53,-1,1,100,0.002,-1],[59,"Pan 8",1,53,-1,1,100,0.002,-1],[60,"Input Gain",1,53,0,1,100,0.001,-1],[61,"Time",1,53,0,1,100,0.001,-1],[62,"Level",1,53,0,1,100,0.001,-1],[63,"Pan",1,53,-1,1,100,0.001,-1],[64,"Pitch",1,53,-2,2,100,0.001,-1],[65,"Detune",1,53,-2,2,100,0.001,-1],[66,"Decay Time",1,51,0.01,60,1,0.05,-1],[67,"Diffusion",1,53,0,1,100,0.001,-1],[68,"Direction",1,16,0,1,1,0,52],[69,"Granule Length",1,52,0.005,0.05,1000,0.00005,-1],[70,"Low Cut",1,66,20,2000,1,0,-1],[71,"High Cut",1,66,200,20000,1,0,-1],[72,"Attenuation",1,49,0,80,1,0.1,-1],[73,"Threshold",1,49,-80,20,1,0.1,-1],[74,"Release",1,52,0.001,1,1000,0.001,-1],[75,"Mix",1,53,0,1,100,0.001,-1],[76,"Time",1,53,0,1,100,0.001,-1],[77,"Rate",1,66,0.05,10,1,0,-1],[78,"Depth",1,53,0,1,100,0.001,-1],[79,"Tempo",1,16,0,77,1,0,51],[80,"Threshold",1,49,-100,0,1,0.1,-1],[81,"Attack",1,68,0.01,10,1000,0,-1],[82,"Release",1,68,0.001,1,1000,0,-1],[83,"Reverb Size",1,53,0.01,1,100,0.001,-1],[84,"Spread",1,53,-2,2,100,0.002,-1],[85,"Pre-Delay",1,52,0,0.25,1000,0.00025,-1],[86,"Type",1,16,0,11,1,0,21],[87,"Frequency",1,66,20,20000,1,0,-1],[88,"Q",1,64,0.1,10,1,0,-1],[89,"Gain",1,49,-12,12,1,0.05,-1],[90,"Shimmer Intensity",1,16,0,10,1,0,-1],[91,"Input Select",1,16,0,2,1,0,32],[92,"Stack/Hold",1,16,0,2,1,0,31],[93,"",0,0,0,0,0,0,-1],[94,"Gainmonitor",1,16,0,44,0,0,53],[95,"LFO Type",1,16,0,10,1,0,54],[96,"LFO Rate",1,66,0.1,10,1,0,-1],[97,"",0,66,20,20000,1,0,-1]],"16":[[0,"Level",1,129,-80,20,1,0.1,-1],[1,"Mix",1,117,0,1,100,0.001,-1],[2,"Balance",1,144,-1,1,100,0.002,-1],[3,"Bypass",1,224,0,1,1,0,-1],[4,"Bypass Mode",1,160,0,2,1,0,15],[5,"Globalmix",1,208,0,0,0,0,-1],[6,"Sceneignore",1,16,0,1,1,0,3],[7,"",0,0,0,1,10,0.001,-1],[8,"",0,0,0,1,10,0.001,-1],[9,"",0,0,0,1,10,0.001,-1],[10,"Type",1,16,0,26,1,0,55],[11,"Number of Voices",1,16,1,4,2,0,-1],[12,"Rate",1,66,0.1,10,1,0,-1],[13,"Tempo",1,16,0,78,1,0,1],[14,"Master Depth",1,53,0,1,100,0.001,-1],[15,"High Cut",1,66,200,20000,1,0,-1],[16,"Delay Time",1,52,0.0001,0.05,1000,0.00001,-1],[17,"LFO Phase",1,54,0,3.14159,57.2958,0.00314159,-1],[18,"LFO Type",1,16,0,9,1,0,0],[19,"Auto Depth",1,16,0,2,1,0,56],[20,"Phase Reverse",1,16,0,3,1,0,41],[21,"Right Time Ratio",1,53,0,1,100,0.001,-1],[22,"Rate R",1,66,0.1,10,1,0,-1],[23,"LFO 2 Depth",1,53,0,1,100,0.001,-1],[24,"Drive",1,80,0.05,50,10,0.001,-1],[25,"Low Cut",1,66,20,2000,1,0,-1],[26,"Stereo Spread",1,53,-2,2,100,0.002,-1],[27,"Dimension Mode",1,16,0,3,1,0,57],[28,"Left Depth",1,53,0,1,100,0.001,-1],[29,"Center Depth",1,53,0,1,100,0.001,-1],[30,"Right Depth",1,53,0,1,100,0.001,-1],[31,"Tempo R",1,16,0,78,1,0,1],[32,"Delay Range",1,52,0.001,0.04,1000,0.00001,-1],[33,"Low",1,48,0,1,10,0.001,-1],[34,"",0,48,0,1,10,0.001,-1]],"17":[[0,"Level",1,129,-80,20,1,0.1,-1],[1,"Mix",1,117,0,1,100,0.001,-1],[2,"Balance",1,144,-1,1,100,0.002,-1],[3,"Bypass",1,224,0,1,1,0,-1],[4,"Bypass Mode",1,160,0,2,1,0,15],[5,"Globalmix",1,208,0,0,0,0,-1],[6,"Sceneignore",1,16,0,1,1,0,3],[7,"",0,0,0,1,10,0.001,-1],[8,"",0,0,0,1,10,0.001,-1],[9,"",0,0,0,1,10,0.001,-1],[10,"Type",1,16,0,31,1,0,58],[11,"Rate",1,66,0.05,10,1,0,-1],[12,"Tempo",1,16,0,78,1,0,1],[13,"Depth",1,53,0,1,100,0.001,-1],[14,"Feedback",1,53,-0.995,0.995,100,0.001,-1],[15,"Manual",1,48,0,1,10,0.001,-1],[16,"Dry Delay",1,53,0,1,100,0.001,-1],[17,"LFO Phase",1,54,0,3.14159,57.2958,0.00314159,-1],[18,"LFO Type",1,16,0,9,1,0,0],[19,"LFO High Cut",1,66,0.5,50,1,0,-1],[20,"Auto Depth",1,16,0,3,1,0,57],[21,"Phase Reverse",1,16,0,3,1,0,41],[22,"Thru Zero",1,16,0,2,1,0,59],[23,"High Cut",1,66,200,20000,1,0,-1],[24,"Drive",1,80,0.005,5,10,0.001,-1],[25,"Low Cut",1,66,20,2000,1,0,-1],[26,"Stereo Spread",1,53,-2,2,100,0.002,-1],[27,"Bypass Reset",1,16,0,4,1,0,60],[28,"High Cut Slope",1,16,0,5,1,0,27],[29,"Low Cut Slope",1,16,0,1,1,0,33],[30,"Bass Focus",1,80,20,2000,10,0.001,-1],[31,"VCO Response",1,16,0,2,1,0,61],[32,"Min Time",1,52,0.00034,0.002,1000,0.000002,-1],[33,"Max Time",1,52,0.002,0.02,1000,0.00001,-1],[34,"Steps",1,16,1,32,1,1,7],[35,"",0,64,0.01,100,1,0,-1]],"18":[[0,"Level",1,129,-80,20,1,0.1,-1],[1,"Mix",1,117,0,1,100,0.001,-1],[2,"Balance",1,144,-1,1,100,0.002,-1],[3,"Bypass",1,224,0,1,1,0,-1],[4,"Bypass Mode",1,160,0,2,1,0,15],[5,"Globalmix",1,208,0,0,0,0,-1],[6,"Sceneignore",1,16,0,1,1,0,3],[7,"",0,0,0,1,10,0.001,-1],[8,"",0,0,0,1,10,0.001,-1],[9,"",0,0,0,1,10,0.001,-1],[10,"Rate",1,50,0,10,1,0.01,-1],[11,"Low Depth",1,53,0,1,100,0.001,-1],[12,"High Depth",1,53,0,1,100,0.001,-1],[13,"High Level",1,49,-6,6,1,0.012,-1],[14,"Tempo",1,16,0,78,1,0,1],[15,"Rotor Length",1,53,0.001,1,100,0.001,-1],[16,"Mic Spacing",1,53,0,3.14159,31.831,0.00314159,-1],[17,"Low Rate Multiplier",1,64,0.1,10,1,0,-1],[18,"Low Time Constant",1,67,0.1,10,1,0,-1],[19,"High Time Constant",1,67,0.1,10,1,0,-1],[20,"Stereo Spread",1,53,-2,2,100,0.002,-1],[21,"Drive",1,80,0.05,50,10,0.001,-1],[22,"Mic Distance",1,64,0.01,1,1,0.001,-1],[23,"",0,16,0,2,1,0,32]],"19":[[0,"Level",1,129,-80,20,1,0.1,-1],[1,"Mix",1,117,0,1,100,0.001,-1],[2,"Balance",1,144,-1,1,100,0.002,-1],[3,"Bypass",1,224,0,1,1,0,-1],[4,"Bypass Mode",1,160,0,2,1,0,15],[5,"Globalmix",1,208,0,0,0,0,-1],[6,"Sceneignore",1,16,0,1,1,0,3],[7,"",0,0,0,1,10,0.001,-1],[8,"",0,0,0,1,10,0.001,-1],[9,"",0,0,0,1,10,0.001,-1],[10,"Type",1,16,0,16,1,0,62],[11,"Order",1,16,0,5,2,0,63],[12,"Rate",1,66,0.1,10,1,0,-1],[13,"Type",1,16,0,9,1,0,0],[14,"Tempo",1,16,0,78,1,0,1],[15,"Depth",1,48,0,1,10,0.001,-1],[16,"Feedback",1,53,-0.9,0.9,111.1,0.002,-1],[17,"Min Frequency",1,66,5,500,1,0,-1],[18,"Max Frequency",1,66,200,20000,1,0,-1],[19,"Phase",1,54,0,3.14159,57.2958,0.00314159,-1],[20,"Bias",1,48,-1,1,1,0.002,-1],[21,"Mode",1,16,0,2,1,0,64],[22,"Feedback Point",1,16,0,11,1,0,-1],[23,"Tone",1,48,-0.31623,0.31623,31.623,0.000316,-1],[24,"Sweep Direction",1,16,0,1,1,0,65],[25,"Sweep Filter Q",1,64,0.1,10,1,0,-1],[26,"Reset on Bypass",1,16,0,4,1,0,60],[27,"Quantize",1,16,1,32,1,1,7],[28,"Type",1,16,0,3,1,0,66],[29,"Exponent",1,64,0.1,10,1,0,-1],[30,"Shape",1,48,0.01,0.99,1,0.001,-1],[31,"High Cut",1,66,0.5,50,1,0,-1],[32,"Attack",1,68,0.01,1,1000,0,-1],[33,"Release",1,68,0.001,0.1,1000,0,-1],[34,"Manual",1,48,0,1,10,0.001,-1],[35,"Low Cut",1,66,20,200,1,0,-1],[36,"High Cut",1,66,2000,20000,1,0,-1],[37,"",0,16,0,1,1,0,67]],"20":[[0,"Level",1,129,-80,20,1,0.1,-1],[1,"Mix",1,117,0,1,100,0.001,-1],[2,"Balance",1,144,-1,1,100,0.002,-1],[3,"Bypass",1,224,0,1,1,0,-1],[4,"Bypass Mode",1,176,0,1,1,0,22],[5,"Globalmix",1,208,0,0,0,0,-1],[6,"Sceneignore",1,16,0,1,1,0,3],[7,"",0,0,0,1,10,0.001,-1],[8,"",0,0,0,1,10,0.001,-1],[9,"",0,0,0,1,10,0.001,-1],[10,"Type",1,16,0,8,1,0,68],[11,"Min Frequency",1,66,100,1000,1,0,-1],[12,"Max Frequency",1,66,500,5000,1,0,-1],[13,"Q Resonance",1,80,2,20,10,0,-1],[14,"Q Tracking",1,48,0,1,10,0.001,-1],[15,"Wah Control",1,48,0,1,10,0.001,-1],[16,"Fat",1,48,0,1,10,0.001,-1],[17,"Drive",1,80,0.01,1,10,0,-1],[18,"Control Taper",1,16,0,5,0,0,69],[19,"Inductor Bias",1,48,0,1,10,0.001,-1],[20,"Low Cut Frequency",1,66,20,2000,1,0,-1],[21,"EQ",1,16,0,1,1,0,3],[22,"160",1,48,-12,12,1,0.025,-1],[23,"250",1,48,-12,12,1,0.025,-1],[24,"400",1,48,-12,12,1,0.025,-1],[25,"640",1,48,-12,12,1,0.025,-1],[26,"1000",1,48,-12,12,1,0.025,-1],[27,"1600",1,48,-12,12,1,0.025,-1],[28,"2500",1,48,-12,12,1,0.025,-1],[29,"",0,48,-12,12,1,0.025,-1]],"21":[[0,"Level",1,129,-80,20,1,0.1,-1],[1,"Mix",1,117,0,1,100,0.001,-1],[2,"Balance",1,144,-1,1,100,0.002,-1],[3,"Bypass",1,224,0,1,1,0,-1],[4,"Bypass Mode",1,160,0,2,1,0,15],[5,"Globalmix",1,208,0,0,0,0,-1],[6,"Sceneignore",1,16,0,1,1,0,3],[7,"",0,0,0,1,10,0.001,-1],[8,"",0,0,0,1,10,0.001,-1],[9,"",0,0,0,1,10,0.001,-1],[10,"Start",1,16,0,9,1,0,70],[11,"Mid",1,16,0,9,1,0,70],[12,"End",1,16,0,9,1,0,70],[13,"Resonance",1,80,4,40,10,0,-1],[14,"",0,53,0,1,100,0.001,-1]],"22":[[0,"Level",1,129,-80,20,1,0.1,-1],[1,"Mix",1,117,0,1,100,0.001,-1],[2,"Balance",1,144,-1,1,100,0.002,-1],[3,"Bypass",1,224,0,1,1,0,-1],[4,"Bypass Mode",1,176,0,1,1,0,22],[5,"Globalmix",1,208,0,0,0,0,-1],[6,"Sceneignore",1,16,0,1,1,0,3],[7,"",0,0,0,0,10,0.001,-1],[8,"",0,0,0,1,10,0.001,-1],[9,"",0,0,0,1,10,0.001,-1],[10,"Type",1,16,0,6,1,0,71],[11,"Type",1,16,0,9,1,0,0],[12,"Rate",1,66,0.2,20,1,0,-1],[13,"Depth",1,53,0,1,100,0.001,-1],[14,"Duty",1,53,0.01,0.99,100,0.001,-1],[15,"Tempo",1,16,0,78,1,0,1],[16,"Phase",1,54,0,3.14159,57.2958,0.00314159,-1],[17,"Width",1,53,0,4,100,0.004,-1],[18,"Pan Center",1,48,-1,1,100,0.002,-1],[19,"Trigger Phase",1,54,0,3.14159,114.592,0.00314159,-1],[20,"Crossover Slope",1,16,0,2,1,0,72],[21,"Crossover Freq",1,66,200,2000,1,0,-1],[22,"Trigger Threshold",1,49,-60,20,1,0.1,-1],[23,"Shape",1,53,0.001,0.999,100,0.001,-1],[24,"",0,48,0,1,10,0.001,-1]],"23":[[0,"Level",1,129,-80,20,1,0.1,-1],[1,"Mix",1,117,0,1,100,0.001,-1],[2,"Balance",1,144,-1,1,100,0.002,-1],[3,"Bypass",1,224,0,1,1,0,-1],[4,"Bypass Mode",1,192,0,4,1,0,28],[5,"Globalmix",1,208,0,0,0,0,-1],[6,"Sceneignore",1,16,0,1,1,0,3],[7,"",0,16,0,1,1,0,3],[8,"",0,0,0,1,10,0.001,-1],[9,"",0,0,0,1,10,0.001,-1],[10,"Type",1,16,0,17,1,0,73],[11,"Mode",1,16,0,5,1,0,74],[12,"Master Pitch",1,53,-1,1,100,0.002,-1],[13,"Control",1,53,0,1,100,0.001,-1],[14,"Harmony 1",1,16,0,48,1,1,75],[15,"Harmony 2",1,16,0,48,1,1,75],[16,"Harmony 3",1,16,0,48,1,1,75],[17,"Harmony 4",1,16,0,48,1,1,75],[18,"Key",1,16,0,11,1,1,76],[19,"Scale",1,16,0,16,1,0,77],[20,"Pitch Quantize",1,16,0,1,1,0,78],[21,"Detune 1",1,55,-50,50,1,0.1,-1],[22,"Detune 2",1,55,-50,50,1,0.1,-1],[23,"Detune 3",1,55,-50,50,1,0.1,-1],[24,"Detune 4",1,55,-50,50,1,0.1,-1],[25,"Shift 1",1,16,-24,24,1,1,-1],[26,"Shift 2",1,16,-24,24,1,1,-1],[27,"Shift 3",1,16,-24,24,1,1,-1],[28,"Shift 4",1,16,-24,24,1,1,-1],[29,"Level 1",1,53,0,1,100,0.001,-1],[30,"Level 2",1,53,0,1,100,0.001,-1],[31,"Level 3",1,53,0,1,100,0.001,-1],[32,"Level 4",1,53,0,1,100,0.001,-1],[33,"Pan 1",1,48,-1,1,100,0.002,-1],[34,"Pan 2",1,48,-1,1,100,0.002,-1],[35,"Pan 3",1,48,-1,1,100,0.002,-1],[36,"Pan 4",1,48,-1,1,100,0.002,-1],[37,"Delay 1",1,52,0,2,1000,0.001,-1],[38,"Delay 2",1,52,0,2,1000,0.001,-1],[39,"Delay 3",1,52,0,2,1000,0.001,-1],[40,"Delay 4",1,52,0,2,1000,0.001,-1],[41,"Feedback 1",1,53,0,1,100,0.001,-1],[42,"Feedback 2",1,53,0,1,100,0.001,-1],[43,"Feedback 3",1,53,0,1,100,0.001,-1],[44,"Feedback 4",1,53,0,1,100,0.001,-1],[45,"Pitch Tracking",1,16,1,2,1,0,79],[46,"Tracking",1,48,0,1,10,0.001,-1],[47,"Formcorrect",1,0,0,0,0,0,-1],[48,"Input Gain",1,53,0,1,100,0.001,-1],[49,"Crossfade Time",1,53,0,1,100,0.001,-1],[50,"Xfadetype",1,16,0,1,1,0,80],[51,"Time 1",1,52,0.001,2,1000,0.001,-1],[52,"Time 2",1,52,0.001,2,1000,0.001,-1],[53,"Tempo 1",1,16,0,78,1,0,1],[54,"Tempo 2",1,16,0,78,1,0,1],[55,"Tempo 3",1,16,0,78,1,0,1],[56,"Tempo 4",1,16,0,78,1,0,1],[57,"Tempo 1",1,16,0,78,1,0,1],[58,"Tempo 2",1,16,0,78,1,0,1],[59,"Feedback Type",1,16,0,2,1,0,81],[60,"Direction",1,16,0,1,1,0,52],[61,"High Cut",1,66,200,20000,1,0,-1],[62,"Glide Time",1,68,0.001,1,1000,0,-1],[63,"Master Delay",1,53,0,1,100,0.001,-1],[64,"Master Feedback",1,53,0,1,100,0.001,-1],[65,"Master Pan",1,53,-1,1,100,0.002,-1],[66,"Master Level",1,53,0,1,100,0.001,-1],[67,"Customnotes",1,16,4,8,1,1,-1],[68,"Note2",1,256,1,6,1,0,-1],[69,"Note3",1,256,2,7,1,0,-1],[70,"Note4",1,256,3,8,1,0,-1],[71,"Note5",1,256,4,9,1,0,-1],[72,"Note6",1,256,5,10,1,0,-1],[73,"Note7",1,256,6,11,1,0,-1],[74,"Note8",1,256,7,12,1,0,-1],[75,"Customscale1",1,16,0,31,1,1,-1],[76,"Customscale2",1,16,0,31,1,1,-1],[77,"Steps",1,16,2,16,1,1,-1],[78,"Repeats",1,16,1,31,1,1,-1],[79,"Run",1,16,0,1,1,1,3],[80,"Tempo",1,16,1,78,1,1,82],[81,"Step 1 Shift",1,16,-24,24,1,1,-1],[82,"Step 2 Shift",1,16,-24,24,1,1,-1],[83,"Step 3 Shift",1,16,-24,24,1,1,-1],[84,"Step 4 Shift",1,16,-24,24,1,1,-1],[85,"Step 5 Shift",1,16,-24,24,1,1,-1],[86,"Step 6 Shift",1,16,-24,24,1,1,-1],[87,"Step 7 Shift",1,16,-24,24,1,1,-1],[88,"Step 8 Shift",1,16,-24,24,1,1,-1],[89,"Step 9 Shift",1,16,-24,24,1,1,-1],[90,"Step 10 Shift",1,16,-24,24,1,1,-1],[91,"Step 11 Shift",1,16,-24,24,1,1,-1],[92,"Step 12 Shift",1,16,-24,24,1,1,-1],[93,"Step 13 Shift",1,16,-24,24,1,1,-1],[94,"Step 14 Shift",1,16,-24,24,1,1,-1],[95,"Step 15 Shift",1,16,-24,24,1,1,-1],[96,"Step 16 Shift",1,16,-24,24,1,1,-1],[97,"Amplitude Shape",1,16,0,5,1,1,83],[98,"Amplitude Alpha",1,53,0,1,100,0.001,-1],[99,"Pan Shape",1,16,0,5,1,1,83],[100,"Pan Alpha",1,53,0,1,100,0.001,-1],[101,"Delay Time 1",1,52,0,0.25,1000,0.0001,-1],[102,"Delay Time 2",1,52,0,0.25,1000,0.0001,-1],[103,"Detector Source",1,16,0,1,1,1,84],[104,"Input Mode",1,16,0,1,1,1,85],[105,"Learn",1,16,0,1,1,1,3],[106,"Low Cut",1,66,20,2000,1,0,-1],[107,"Feedback Mode",1,16,0,1,1,0,86],[108,"LFO Rate",1,66,0.1,10,1,0,-1],[109,"LFO Tempo",1,16,0,78,1,0,1],[110,"LFO Depth",1,53,0,1,100,0.001,-1],[111,"Tonic",1,256,0,0,1,0,-1],[112,"Temperament",1,16,0,1,1,0,87],[113,"Diffusion",1,53,0,1,100,0.001,-1],[114,"Diffusion Time",1,53,0,1,100,0.001,-1],[115,"A",1,31,-24,24,1,1,-1],[116,"A#/Bb",1,31,-24,24,1,1,-1],[117,"B",1,31,-24,24,1,1,-1],[118,"C",1,31,-24,24,1,1,-1],[119,"C#/Db",1,31,-24,24,1,1,-1],[120,"D",1,31,-24,24,1,1,-1],[121,"D#/Eb",1,31,-24,24,1,1,-1],[122,"E",1,31,-24,24,1,1,-1],[123,"F",1,31,-24,24,1,1,-1],[124,"F#/Gb",1,31,-24,24,1,1,-1],[125,"G",1,31,-24,24,1,1,-1],[126,"G#/Ab",1,31,-24,24,1,1,-1],[127,"A",1,31,-24,24,1,1,-1],[128,"A#/Bb",1,31,-24,24,1,1,-1],[129,"B",1,31,-24,24,1,1,-1],[130,"C",1,31,-24,24,1,1,-1],[131,"C#/Db",1,31,-24,24,1,1,-1],[132,"D",1,31,-24,24,1,1,-1],[133,"D#/Eb",1,31,-24,24,1,1,-1],[134,"E",1,31,-24,24,1,1,-1],[135,"F",1,31,-24,24,1,1,-1],[136,"F#/Gb",1,31,-24,24,1,1,-1],[137,"G",1,31,-24,24,1,1,-1],[138,"G#/Ab",1,31,-24,24,1,1,-1],[139,"",0,49,-100,0,1,0.1,-1]],"24":[[0,"Level",1,129,-80,20,1,0.1,-1],[1,"Mix",1,117,0,1,100,0.001,-1],[2,"Balance",1,144,-1,1,100,0.002,-1],[3,"Bypass",1,224,0,1,1,0,-1],[4,"Bypass Mode",1,176,0,1,1,0,22],[5,"Globalmix",1,208,0,0,0,0,-1],[6,"Sceneignore",1,16,0,1,1,0,3],[7,"",0,0,0,1,10,0.001,-1],[8,"",0,0,0,1,10,0.001,-1],[9,"",0,0,0,1,10,0.001,-1],[10,"Type",1,16,0,17,1,0,88],[11,"Frequency",1,66,20,20000,1,0,-1],[12,"Q",1,64,0.1,10,1,0,-1],[13,"Gain",1,49,-20,20,1,0.05,-1],[14,"Order",1,16,0,1,1,0,89],[15,"Pan Left",1,48,-1,1,100,0.002,-1],[16,"Pan Right",1,48,-1,1,100,0.002,-1],[17,"Phase Invert",1,16,0,3,1,0,41],[18,"Low Cut",1,66,20,2000,1,0,-1],[19,"High Cut",1,66,200,20000,1,0,-1],[20,"Delay Time",1,52,0,0.04,1000,0.00001,-1],[21,"Depth",1,53,-1,1,100,0.002,-1],[22,"LFO Enable",1,16,0,1,1,0,3],[23,"LFO Type",1,16,0,9,1,0,0],[24,"Rate",1,66,0.1,10,1,0,-1],[25,"Duty Cycle",1,53,0.01,0.99,100,0.001,-1],[26,"Mod Frequency",1,66,20,20000,1,0,-1],[27,"Quantize",1,16,1,32,1,1,7],[28,"Order",1,16,1,12,1,0,-1],[29,"Mode",1,16,0,3,1,0,90],[30,"Resonance",1,80,1,20,10,0,-1],[31,"Start Frequency",1,66,100,10000,1,0,-1],[32,"Stop Frequency",1,66,100,10000,1,0,-1],[33,"Sensitivity",1,80,0.1,40,10,0,-1],[34,"Attack Time",1,68,0.001,1,1000,0,-1],[35,"Release Time",1,68,0.02,2,1000,0,-1],[36,"Sweep Shape",1,48,0,2,5,0.002,-1],[37,"Detector Source",1,16,0,1,1,1,91],[38,"Detect",1,0,0,0,0,0,-1],[39,"Emphasis",1,48,0,1,10,0.001,-1],[40,"",0,16,0,78,1,0,1]],"25":[[0,"Level",1,0,0,1,10,0.001,-1],[1,"Mix",1,0,0,1,10,0.001,-1],[2,"Balance",1,144,-1,1,100,0.002,-1],[3,"Bypass",1,224,0,1,1,0,-1],[4,"Bypass Mode",1,176,0,1,1,0,22],[5,"Globalmix",1,208,0,0,0,0,-1],[6,"Sceneignore",1,16,0,1,1,0,3],[7,"",0,0,0,1,10,0.001,-1],[8,"",0,0,0,1,10,0.001,-1],[9,"",0,0,0,1,10,0.001,-1],[10,"Type",1,16,0,77,1,0,92],[11,"Drive",1,48,0,1,10,0.001,-1],[12,"Attack",1,48,0,1,10,0.001,-1],[13,"Level",1,48,0,1,10,0.001,-1],[14,"Blend",1,53,0,1,100,0.001,-1],[15,"Slew Rate",1,80,0.1,10,10,0.001,-1],[16,"Grunt",1,66,20,2000,1,0,-1],[17,"High Cut",1,66,200,20000,1,0,-1],[18,"Clip Type",1,16,0,13,1,0,93],[19,"Bias",1,48,-1,1,1,0.002,-1],[20,"Bass",1,48,0,1,10,0.001,-1],[21,"Mid",1,48,0,1,10,0.001,-1],[22,"Mid Frequency",1,66,200,2000,1,0,-1],[23,"Treble",1,48,0,1,10,0.001,-1],[24,"Bit Reduce",1,16,0,24,1,1,-1],[25,"Input Select",1,16,0,2,1,0,32],[26,"Sample Rate",1,66,0.001,1,48000,1,-1],[27,"Clip Shape",1,48,0,1,10,0.001,-1],[28,"EQ",1,16,0,2,1,0,94],[29,"100",1,48,-12,12,1,0.025,-1],[30,"160",1,48,-12,12,1,0.025,-1],[31,"250",1,48,-12,12,1,0.025,-1],[32,"400",1,48,-12,12,1,0.025,-1],[33,"640",1,48,-12,12,1,0.025,-1],[34,"1000",1,48,-12,12,1,0.025,-1],[35,"1600",1,48,-12,12,1,0.025,-1],[36,"2500",1,48,-12,12,1,0.025,-1],[37,"4000",1,48,-12,12,1,0.025,-1],[38,"6400",1,48,-12,12,1,0.025,-1],[39,"Diode+ Type",1,16,0,21,1,0,95],[40,"Diode+ Quantity",1,16,1,4,1,0,-1],[41,"Diode- Type",1,16,0,21,1,0,95],[42,"Diode- Quantity",1,16,1,4,1,0,-1],[43,"Dry Level",1,53,0,2,100,0.001,-1],[44,"Voice",1,48,0,1,10,0.001,-1],[45,"High Mid",1,48,0,1,10,0.001,-1],[46,"Version",1,16,0,0,1,0,96],[47,"Wicker",1,16,0,1,1,0,3],[48,"Tone",1,16,0,1,1,0,3],[49,"",0,48,0,1,10,0.001,-1]],"26":[[0,"Level",1,129,-80,20,1,0.1,-1],[1,"Mix",1,117,0,1,100,0.001,-1],[2,"Balance",1,144,-1,1,100,0.002,-1],[3,"Bypass",1,224,0,1,1,0,-1],[4,"Bypass Mode",1,176,0,1,1,0,22],[5,"Globalmix",1,208,0,0,0,0,-1],[6,"Sceneignore",1,16,0,1,1,0,3],[7,"",0,0,0,1,10,0.001,-1],[8,"",0,0,0,1,10,0.001,-1],[9,"",0,0,0,1,10,0.001,-1],[10,"Width",1,48,0,1,100,0.001,-1],[11,"Depth",1,48,0,1,100,0.001,-1],[12,"Low Cut",1,66,20,2000,1,0,-1],[13,"High Cut",1,66,200,20000,1,0,-1],[14,"Type",1,16,0,2,1,0,97],[15,"Phase Invert",1,16,0,3,1,0,41],[16,"Pan Left",1,48,-1,1,100,0.002,-1],[17,"",0,48,-1,1,100,0.002,-1]],"31":[[0,"Level",1,129,-80,20,1,0.1,-1],[1,"Mix",1,117,0,1,100,0.001,-1],[2,"Balance",1,144,-1,1,100,0.002,-1],[3,"Bypass",1,224,0,1,1,0,-1],[4,"Bypass Mode",1,160,0,2,1,0,15],[5,"Globalmix",1,208,0,0,0,0,-1],[6,"Sceneignore",1,16,0,1,1,0,3],[7,"",0,0,0,1,10,0.001,-1],[8,"",0,0,0,1,10,0.001,-1],[9,"",0,0,0,1,10,0.001,-1],[10,"Type",1,16,0,7,1,0,98],[11,"Frequency",1,66,40,4000,1,1,-1],[12,"Tracking",1,16,0,3,1,0,99],[13,"Shift",1,16,-24,24,1,1,-1],[14,"Tune",1,55,-50,50,1,0.1,-1],[15,"Duty Cycle",1,53,0.01,0.99,100,0.001,-1],[16,"Level",1,53,0,1,100,0.001,-1],[17,"Pan",1,48,-1,1,100,0.002,-1],[18,"Attack",1,68,0.005,1,1000,0,-1],[19,"Filter",1,66,200,20000,1,0,-1],[20,"Q",1,64,0.5,10,1,0,-1],[21,"Type",1,16,0,7,1,0,98],[22,"Frequency",1,66,40,4000,1,1,-1],[23,"Tracking",1,16,0,3,1,0,99],[24,"Shift",1,16,-24,24,1,1,-1],[25,"Tune",1,55,-50,50,1,0.1,-1],[26,"Duty Cycle",1,53,0.01,0.99,100,0.001,-1],[27,"Level",1,53,0,1,100,0.001,-1],[28,"Pan",1,48,-1,1,100,0.002,-1],[29,"Attack",1,68,0.005,1,1000,0,-1],[30,"Filter",1,66,200,20000,1,0,-1],[31,"Q",1,64,0.5,10,1,0,-1],[32,"Spare1",1,0,0,0,0,0,-1],[33,"Type",1,16,0,7,1,0,98],[34,"Frequency",1,66,20,20000,1,1,-1],[35,"Tracking",1,16,0,3,1,0,99],[36,"Shift",1,16,-24,24,1,1,-1],[37,"Tune",1,55,-50,50,1,0.1,-1],[38,"Duty Cycle",1,53,0.01,0.99,100,0.001,-1],[39,"Level",1,53,0,1,100,0.001,-1],[40,"Pan",1,48,-1,1,100,0.002,-1],[41,"Attack",1,68,0.005,1,1000,0,-1],[42,"Filter",1,66,200,20000,1,0,-1],[43,"Q",1,64,0.5,10,1,0,-1],[44,"",0,16,0,1,1,0,100]],"33":[[0,"Level",1,129,-80,20,1,0.1,-1],[1,"Mix",1,117,0,1,100,0.001,-1],[2,"Balance",1,144,-1,1,100,0.002,-1],[3,"Bypass",1,224,0,1,1,0,-1],[4,"Bypass Mode",1,192,0,4,1,0,28],[5,"Globalmix",1,208,0,0,0,0,-1],[6,"Sceneignore",1,16,0,1,1,0,3],[7,"",0,16,0,1,1,0,3],[8,"",0,0,0,1,10,0.001,-1],[9,"",0,0,0,1,10,0.001,-1],[10,"Input Gain",1,53,0,1,100,0.001,-1],[11,"Master level",1,53,0,1,100,0.001,-1],[12,"Delay Time",1,52,0.001,4,1000,0.001,-1],[13,"Number of Taps",1,16,1,128,1,0,-1],[14,"Predelay",1,52,0,1,1000,0.001,-1],[15,"Time Shape",1,16,0,3,1,0,101],[16,"Time Alpha",1,53,0,1,100,0.001,-1],[17,"Amplitude Shape",1,16,0,6,1,0,102],[18,"Amplitude Alpha",1,53,0,1,100,0.001,-1],[19,"Pan Shape",1,16,0,6,1,0,102],[20,"Pan Alpha",1,53,0,1,100,0.001,-1],[21,"Time Randomize",1,53,0,0.5,200,0.0005,-1],[22,"Mix",1,53,0,1,100,0.001,-1],[23,"Time",1,53,0.01,1,100,0.001,-1],[24,"Threshold",1,49,-100,0,1,0.1,-1],[25,"Attack Time",1,68,0.01,10,1000,0,-1],[26,"Release Time",1,68,0.001,1,1000,0,-1],[27,"Input Select",1,16,0,2,1,0,32],[28,"Feedback",1,53,0,1,100,0.001,-1],[29,"Feedback Tap",1,16,1,32,1,0,-1],[30,"Low Cut Freq",1,66,20,2000,1,0,-1],[31,"High Cut Freq",1,66,200,20000,1,0,-1],[32,"Type",1,16,0,21,1,0,103],[33,"Stereo Spread",1,53,-2,2,100,0.002,-1],[34,"Ampl. Randomize",1,53,0,0.5,200,0.0005,-1],[35,"LFO Rate",1,66,0.1,10,1,0,-1],[36,"",0,53,0,1,100,0.001,-1]],"35":[[0,"Level",1,129,-80,20,1,0.1,-1],[1,"Mix",1,117,0,1,100,0.001,-1],[2,"Balance",1,144,-1,1,100,0.002,-1],[3,"Bypass",1,224,0,1,1,0,-1],[4,"Bypass Mode",1,176,0,1,1,0,22],[5,"Globalmix",1,208,0,0,0,0,-1],[6,"Sceneignore",1,16,0,1,1,0,3],[7,"",0,0,0,1,10,0.001,-1],[8,"",0,0,0,1,10,0.001,-1],[9,"",0,0,0,1,10,0.001,-1],[10,"Threshold",1,97,-100,0,1,0.1,-1],[11,"Attack Time",1,68,0.0001,1,1000,0,-1],[12,"Hold Time",1,68,0.001,1,1000,0,-1],[13,"Release Time",1,68,0.001,1,1000,0,-1],[14,"Ratio",1,64,1,20,1,0,-1],[15,"Sidechain Source",1,16,0,3,0,0,18],[16,"Low Cut",1,66,10,1000,1,0,-1],[17,"High Cut",1,66,200,20000,1,0,-1],[18,"Gain",1,0,0,0,0,0,-1],[19,"Type",1,16,0,3,0,0,104],[20,"Attenuation",1,97,-80,0,1,0.1,-1],[21,"Detector Type",1,16,0,1,0,0,105],[22,"",0,16,0,4,0,0,16]],"36":[[0,"Level",1,129,-80,20,1,0.1,-1],[1,"Mix",1,117,0,1,100,0.001,-1],[2,"Balance",1,144,-1,1,100,0.002,-1],[3,"Bypass",1,224,0,1,1,0,-1],[4,"Bypass Mode",1,160,0,2,1,0,15],[5,"Globalmix",1,208,0,0,0,0,-1],[6,"Sceneignore",1,16,0,1,1,0,3],[7,"",0,0,0,1,10,0.001,-1],[8,"",0,0,0,1,10,0.001,-1],[9,"",0,0,0,1,10,0.001,-1],[10,"Frequency",1,66,2,2000,1,0,-1],[11,"Multiplier",1,64,0.25,4,1,0,-1],[12,"Pitch Tracking",1,16,0,1,0,0,3],[13,"High Cut",1,66,200,20000,1,0,-1],[14,"Type",1,16,0,2,0,0,106],[15,"",0,16,0,1,1,0,100]],"39":[[0,"Level",1,129,-80,20,1,0.1,-1],[1,"Mix",1,117,0,1,100,0.001,-1],[2,"Balance",1,144,-1,1,100,0.002,-1],[3,"Bypass",1,224,0,1,1,0,-1],[4,"Bypass Mode",1,160,0,2,1,0,15],[5,"Globalmix",1,208,0,0,0,0,-1],[6,"Sceneignore",1,16,0,1,1,0,3],[7,"",0,0,0,1,10,0.001,-1],[8,"",0,0,0,1,10,0.001,-1],[9,"",0,0,0,1,10,0.001,-1],[10,"Mode",1,16,0,1,1,0,107],[11,"Chord",1,16,0,8,1,0,108],[12,"Input Gain",1,53,0,1,100,0.001,-1],[13,"Frequency",1,64,50,5000,1,0,-1],[14,"Master Frequency",1,64,0.5,2,1,0,-1],[15,"Master Level",1,53,0,1,100,0.001,-1],[16,"Master Pan",1,53,-1,1,100,0.001,-1],[17,"Master Feedback",1,53,-1,1,100,0.002,-1],[18,"Master Q",1,64,0.1,10,1,0,-1],[19,"Frequency 1",1,64,100,10000,1,0,-1],[20,"Frequency 2",1,64,100,10000,1,0,-1],[21,"Frequency 3",1,64,100,10000,1,0,-1],[22,"Frequency 4",1,64,100,10000,1,0,-1],[23,"Feedback 1",1,53,-1,1,100,0.002,-1],[24,"Feedback 2",1,53,-1,1,100,0.002,-1],[25,"Feedback 3",1,53,-1,1,100,0.002,-1],[26,"Feedback 4",1,53,-1,1,100,0.002,-1],[27,"Filter Location 1",1,16,0,1,1,0,109],[28,"Filter Location 2",1,16,0,1,1,0,109],[29,"Filter Location 3",1,16,0,1,1,0,109],[30,"Filter Location 4",1,16,0,1,1,0,109],[31,"Filter Q 1",1,64,0.1,10,1,0,-1],[32,"Filter Q 2",1,64,0.1,10,1,0,-1],[33,"Filter Q 3",1,64,0.1,10,1,0,-1],[34,"Filter Q 4",1,64,0.1,10,1,0,-1],[35,"Level 1",1,53,0,1,100,0.001,-1],[36,"Level 2",1,53,0,1,100,0.001,-1],[37,"Level 3",1,53,0,1,100,0.001,-1],[38,"Level 4",1,53,0,1,100,0.001,-1],[39,"Pan 1",1,48,-1,1,100,0.002,-1],[40,"Pan 2",1,48,-1,1,100,0.002,-1],[41,"Pan 3",1,48,-1,1,100,0.002,-1],[42,"Pan 4",1,48,-1,1,100,0.002,-1],[43,"",0,16,0,1,1,0,85]],"40":[[0,"Level",1,129,-80,20,1,0.1,-1],[1,"Mix",1,117,0,1,100,0.001,-1],[2,"Balance",1,144,-1,1,100,0.002,-1],[3,"Bypass",1,224,0,1,1,0,-1],[4,"Bypass Mode",1,176,0,1,1,0,22],[5,"Globalmix",1,208,0,0,0,0,-1],[6,"Sceneignore",1,16,0,1,1,0,3],[7,"",0,0,0,1,10,0.001,-1],[8,"",0,0,0,1,10,0.001,-1],[9,"",0,0,0,1,10,0.001,-1],[10,"Volume",1,48,0,1,10,0.001,-1],[11,"Taper",1,16,0,6,1,0,110],[12,"Pan Left",1,48,-1,1,100,0.002,-1],[13,"Pan Right",1,48,-1,1,100,0.002,-1],[14,"Input Select",1,16,0,2,1,0,111],[15,"Type",1,16,0,1,1,0,112],[16,"Threshold",1,49,-80,0,1,0.1,-1],[17,"Attack",1,68,0.01,1,1000,0,-1],[18,"Release",1,68,0.001,0.1,1000,0,-1],[19,"Hysteresis",1,49,0,12,1,0.01,-1],[20,"",0,0,0,0,0,0,-1]],"41":[[0,"Level",1,129,-80,20,1,0.1,-1],[1,"Mix",1,117,0,1,100,0.001,-1],[2,"Balance",1,144,-1,1,100,0.002,-1],[3,"Bypass",1,224,0,1,1,0,-1],[4,"Bypass Mode",1,176,0,1,1,0,22],[5,"Globalmix",1,208,0,0,0,0,-1],[6,"Sceneignore",1,16,0,1,1,0,3],[7,"",0,0,0,1,10,0.001,-1],[8,"",0,0,0,1,10,0.001,-1],[9,"",0,0,0,1,10,0.001,-1],[10,"Threshold",1,49,-100,0,1,0.1,-1],[11,"Ratio",1,64,1,20,1,0,-1],[12,"Release",1,68,0.01,1,1000,0,-1],[13,"Attack",1,68,0.0001,0.1,1000,0,-1],[14,"Input Impedance",1,16,0,12,1,0,113],[15,"Gate Type",1,16,0,2,1,0,114],[16,"",0,0,0,0,0,0,-1],[17,"",0,16,0,1,1,0,115]],"46":[[0,"Level",1,129,-80,20,1,0.1,-1],[1,"Mix",1,117,0,1,100,0.001,-1],[2,"Balance",1,144,-1,1,100,0.002,-1],[3,"Bypass",1,224,0,1,1,0,-1],[4,"Bypass Mode",1,176,0,1,1,0,22],[5,"Globalmix",1,208,0,0,0,0,-1],[6,"Sceneignore",1,16,0,1,1,0,3],[7,"",0,0,0,1,10,0.001,-1],[8,"",0,0,0,1,10,0.001,-1],[9,"",0,0,0,1,10,0.001,-1],[10,"",0,49,-20,20,1,0.04,-1],[11,"",0,49,-20,20,1,0.04,-1],[12,"",0,49,-20,20,1,0.04,-1],[13,"",0,49,-20,20,1,0.04,-1],[14,"",0,49,-20,20,1,0.04,-1],[15,"",0,49,-20,20,1,0.04,-1],[16,"",0,48,-1,1,100,0.002,-1],[17,"",0,48,-1,1,100,0.002,-1],[18,"",0,48,-1,1,100,0.002,-1],[19,"",0,48,-1,1,100,0.002,-1],[20,"",0,48,-1,1,100,0.002,-1],[21,"",0,48,-1,1,100,0.002,-1],[22,"Left",1,0,0,0,0,0,-1],[23,"Right",1,0,0,0,0,0,-1],[24,"Scene 1 Level",1,49,-20,20,1,0.04,-1],[25,"Scene 2 Level",1,49,-20,20,1,0.04,-1],[26,"Scene 3 Level",1,49,-20,20,1,0.04,-1],[27,"Scene 4 Level",1,49,-20,20,1,0.04,-1],[28,"31",1,48,-12,12,1,0.1,-1],[29,"63",1,48,-12,12,1,0.1,-1],[30,"125",1,48,-12,12,1,0.1,-1],[31,"250",1,48,-12,12,1,0.1,-1],[32,"500",1,48,-12,12,1,0.1,-1],[33,"1k",1,48,-12,12,1,0.1,-1],[34,"2k",1,48,-12,12,1,0.1,-1],[35,"4k",1,48,-12,12,1,0.1,-1],[36,"8k",1,48,-12,12,1,0.1,-1],[37,"",0,48,-12,12,1,0.1,-1]],"55":[[0,"Level",1,129,-80,20,1,0.1,-1],[1,"Mix",1,117,0,1,100,0.001,-1],[2,"Balance",1,144,-1,1,100,0.002,-1],[3,"Bypass",1,224,0,1,1,0,-1],[4,"Bypass Mode",1,160,0,2,1,0,15],[5,"Globalmix",1,208,0,0,0,0,-1],[6,"Sceneignore",1,16,0,1,1,0,3],[7,"",0,0,0,1,10,0.001,-1],[8,"",0,0,0,1,10,0.001,-1],[9,"",0,0,0,1,10,0.001,-1],[10,"Bank",1,16,0,0,1,1,116],[11,"IR #",1,32,0,255,1,1,-1],[12,"Low Cut",1,66,20,2000,1,0,-1],[13,"High Cut",1,66,200,20000,1,0,-1],[14,"Filter Slope",1,16,0,1,1,0,33],[15,"Input Select",1,16,0,3,1,1,117],[16,"IR Length",1,16,0,3,1,0.001,118],[17,"Bank",1,16,0,0,1,1,116],[18,"IR #",1,32,0,255,1,1,-1],[19,"IR Length",1,16,0,3,1,0.001,118],[20,"Level",1,97,-40,0,1,0.025,-1],[21,"Level",1,97,-40,0,1,0.025,-1],[22,"Pan",1,48,-1,1,100,0.002,-1],[23,"Pan",1,48,-1,1,100,0.002,-1],[24,"",0,16,0,1,1,0,119],[25,"",0,0,0,1,10,0.001,-1],[26,"Cab Mode",1,0,0,1,10,0.001,-1],[27,"M",1,16,0,1,1,0,120],[28,"",0,16,0,1,1,0,120]],"60":[[0,"",0,0,0,1,10,0.001,-1],[1,"",0,0,0,1,10,0.001,-1],[2,"",0,0,0,1,10,0.001,-1],[3,"",0,0,0,1,10,0.001,-1],[4,"",0,0,0,1,10,0.001,-1],[5,"",0,0,0,1,10,0.001,-1],[6,"",0,0,0,1,10,0.001,-1],[7,"",0,0,0,1,10,0.001,-1],[8,"",0,0,0,1,10,0.001,-1],[9,"",0,0,0,1,10,0.001,-1],[10,"",0,16,0,103,1,0,-1],[11,"",0,0,0,103,1,0.001,-1],[12,"",0,240,0,1,1,0,-1],[13,"",0,16,0,3,1,0,-1],[14,"",0,53,0,100,1,0,-1],[15,"",0,16,0,208,1,0,-1],[16,"",0,16,0,208,1,0,-1],[17,"",0,16,0,208,1,0,-1],[18,"",0,16,0,208,1,0,-1],[19,"Scene output4",1,16,0,0,1,0,121],[20,"Routing slot2",1,16,0,1,1,0,122],[21,"Routing slot3",1,16,0,1,1,0,122],[22,"",0,16,0,1,1,0,122],[23,"",0,16,0,3,1,0,123],[24,"",0,16,0,3,1,0,123],[25,"",0,16,0,3,1,0,123],[26,"",0,16,0,3,1,0,123],[27,"",0,16,0,3,1,0,123],[28,"",0,16,0,3,1,0,123],[29,"",0,16,0,3,1,0,123],[30,"",0,16,0,3,1,0,123],[31,"",0,16,0,3,1,0,123],[32,"",0,16,0,3,1,0,123],[33,"",0,16,0,3,1,0,123],[34,"",0,16,0,3,1,0,123],[35,"",0,16,0,3,1,0,123],[36,"",0,16,0,3,1,0,123],[37,"",0,16,0,3,1,0,123],[38,"",0,16,0,3,1,0,123],[39,"",0,16,0,1,1,0,3],[40,"",0,16,0,1,1,0,3],[41,"",0,16,0,1,1,0,3],[42,"",0,16,0,1,1,0,3],[43,"",0,16,0,1,1,0,3],[44,"",0,16,0,1,1,0,3],[45,"",0,16,0,1,1,0,3],[46,"",0,16,0,1,1,0,3],[47,"",0,16,0,1,1,0,3],[48,"",0,16,0,1,1,0,3],[49,"",0,16,0,1,1,0,3],[50,"",0,16,0,1,1,0,3],[51,"",0,16,0,1,1,0,3],[52,"",0,16,0,1,1,0,3],[53,"",0,16,0,1,1,0,3],[54,"",0,16,0,1,1,0,3],[55,"",0,0,0,0,1,0.001,-1],[56,"",0,0,0,0,1,0.001,-1],[57,"",0,0,0,0,1,0.001,-1],[58,"",0,0,0,0,1,0.001,-1],[59,"Scene output1",1,129,-80,20,1,0.1,-1],[60,"Scene output2",1,129,-80,20,1,0.1,-1],[61,"Scene output3",1,129,-80,20,1,0.1,-1],[62,"Routing slot4",1,129,-80,20,1,0.1,-1],[63,"4cm",1,16,0,5,1,0,124],[64,"Scene 1 midi msg 1",1,16,0,129,1,0,-1],[65,"Scene 1 midi msg 2",1,16,0,129,1,0,-1],[66,"Scene 1 midi msg 3",1,16,0,129,1,0,-1],[67,"Scene 1 midi msg 4",1,16,0,129,1,0,-1],[68,"Scene 2 midi msg 1",1,16,0,129,1,0,-1],[69,"Scene 2 midi msg 2",1,16,0,129,1,0,-1],[70,"Scene 2 midi msg 3",1,16,0,129,1,0,-1],[71,"Scene 2 midi msg 4",1,16,0,129,1,0,-1],[72,"Scene 3 midi msg 1",1,16,0,129,1,0,-1],[73,"Scene 3 midi msg 2",1,16,0,129,1,0,-1],[74,"Scene 3 midi msg 3",1,16,0,129,1,0,-1],[75,"Scene 3 midi msg 4",1,16,0,129,1,0,-1],[76,"Scene 4 midi msg 1",1,16,0,129,1,0,-1],[77,"Scene 4 midi msg 2",1,16,0,129,1,0,-1],[78,"Scene 4 midi msg 3",1,16,0,129,1,0,-1],[79,"Scene 4 midi msg 4",1,16,0,129,1,0,-1],[80,"Scene 1 midi ch 1",1,16,1,16,1,0,-1],[81,"Scene 1 midi ch 2",1,16,1,16,1,0,-1],[82,"Scene 1 midi ch 3",1,16,1,16,1,0,-1],[83,"Scene 1 midi ch 4",1,16,1,16,1,0,-1],[84,"Scene 2 midi ch 1",1,16,1,16,1,0,-1],[85,"Scene 2 midi ch 2",1,16,1,16,1,0,-1],[86,"Scene 2 midi ch 3",1,16,1,16,1,0,-1],[87,"Scene 2 midi ch 4",1,16,1,16,1,0,-1],[88,"Scene 3 midi ch 1",1,16,1,16,1,0,-1],[89,"Scene 3 midi ch 2",1,16,1,16,1,0,-1],[90,"Scene 3 midi ch 3",1,16,1,16,1,0,-1],[91,"Scene 3 midi ch 4",1,16,1,16,1,0,-1],[92,"Scene 4 midi ch 1",1,16,1,16,1,0,-1],[93,"Scene 4 midi ch 2",1,16,1,16,1,0,-1],[94,"Scene 4 midi ch 3",1,16,1,16,1,0,-1],[95,"Scene 4 midi ch 4",1,16,1,16,1,0,-1],[96,"Scene 1 midi val 1",1,16,0,127,1,0,-1],[97,"Scene 1 midi val 2",1,16,0,127,1,0,-1],[98,"Scene 1 midi val 3",1,16,0,127,1,0,-1],[99,"Scene 1 midi val 4",1,16,0,127,1,0,-1],[100,"Scene 2 midi val 1",1,16,0,127,1,0,-1],[101,"Scene 2 midi val 2",1,16,0,127,1,0,-1],[102,"Scene 2 midi val 3",1,16,0,127,1,0,-1],[103,"Scene 2 midi val 4",1,16,0,127,1,0,-1],[104,"Scene 3 midi val 1",1,16,0,127,1,0,-1],[105,"Scene 3 midi val 2",1,16,0,127,1,0,-1],[106,"Scene 3 midi val 3",1,16,0,127,1,0,-1],[107,"Scene 3 midi val 4",1,16,0,127,1,0,-1],[108,"Scene 4 midi val 1",1,16,0,127,1,0,-1],[109,"Scene 4 midi val 2",1,16,0,127,1,0,-1],[110,"Scene 4 midi val 3",1,16,0,127,1,0,-1],[111,"",0,16,0,127,1,0,-1],[112,"",0,16,0,65535,1,0,-1]]}};
+  const EFF_OF = { 2: 2, 37: 41, 42: 46, 46: 7, 50: 8, 54: 9, 66: 12, 70: 13, 74: 14, 78: 16, 82: 17, 86: 18, 90: 19, 94: 20, 98: 21, 102: 40, 106: 22, 110: 23, 114: 24, 118: 25, 122: 26, 130: 31, 138: 33, 146: 35, 150: 36, 162: 39, 178: 15, 195: 55, 206: 60 };
+  // Ctrl, In, Out, GEQ, PEQ, Vol/Pan, Wah, Trem, Drive, Enh, Gate, Routing (Gate and Vol/Pan confirmed in VP4-Edit)
+  const NO_MIX = new Set([2, 37, 42, 50, 54, 102, 94, 106, 118, 122, 146, 206]);
+  const UNITS = { 0: '', 1: 'dB', 2: 'Hz', 3: 's', 4: 'ms', 5: '%', 6: '°', 7: 'cents', 10: 'BPM', 15: 'st' };
+
+  function paramDefs(eff) {
+    const list = DEFS.effs && DEFS.effs[eff]; if (!list) return null;
+    const m = {};
+    for (const [id, name, named, type, min, max, f3, f4, li] of list) m[id] = { id, name, named: !!named, type, min, max, f3, f4, strs: li >= 0 ? DEFS.lists[li] : null };
+    return m;
+  }
+  function kindOf(d) {
+    if (!d) return 'raw';
+    const hi = d.type >> 4;
+    if (d.strs) return 'enum';
+    if (d.type === 0 || hi === 0xd) return 'hidden';
+    if (hi === 0xe) return 'toggle';
+    if (hi === 1 || hi === 2 || d.type >= 0x100) return 'int';
+    return 'cont';
+  }
+  // Lists whose range starts at 1 (e.g. MIDI CC lists 1..130) are stored as index + 1
+  const enumOff = d => d && d.min > 0 && Number.isInteger(d.min) ? d.min : 0;
+  function enumSelect(attr, d, raw) {
+    const off = enumOff(d);
+    return `<select ${attr}>${d.strs.map((s, i) => `<option value="${i + off}" ${i + off === raw ? 'selected' : ''}>${escHtml(s)}</option>`).join('')}${raw - off >= d.strs.length || raw < off ? `<option value="${raw}" selected>#${raw}</option>` : ''}</select>`;
+  }
+  const escHtml = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const unitOf = d => (d.type >> 4) === 5 ? '' : (UNITS[d.type & 15] ?? '');
+  function toDisplay(d, raw) {
+    const hi = d.type >> 4, t = raw / 65534;
+    if (hi === 5) return t * d.f3;
+    let v = hi === 4 && d.min > 0 ? d.min * Math.pow(d.max / d.min, t) : d.min + t * (d.max - d.min);
+    return v * (d.f3 || 1);
+  }
+  function fromDisplay(d, x) {
+    const hi = d.type >> 4; let t;
+    if (hi === 5) t = x / d.f3;
+    else { const v = x / (d.f3 || 1); t = hi === 4 && d.min > 0 ? Math.log(v / d.min) / Math.log(d.max / d.min) : (v - d.min) / (d.max - d.min); }
+    if (!isFinite(t)) t = 0;
+    return Math.round(Math.min(1, Math.max(0, t)) * 65534);
+  }
+  function decimals(d, v) {
+    const hi = d.type >> 4;
+    if (hi === 5) return 2;
+    if (hi !== 4 && d.f4 > 0) return Math.min(3, Math.max(0, Math.ceil(-Math.log10(d.f4 * (d.f3 || 1)) - 1e-9)));
+    const a = Math.abs(v); return a >= 100 ? 0 : a >= 10 ? 1 : 2;
+  }
+  const fmtNum = (d, v) => { const s = v.toFixed(decimals(d, v)); return /^-0(.0*)?$/.test(s) ? s.slice(1) : s; };
+  const int16 = r => r >= 0x8000 ? r - 0x10000 : r;
+  function formatValue(d, raw) {
+    const k = kindOf(d);
+    if (k === 'enum') return d.strs[raw - enumOff(d)] ?? `#${raw}`;
+    if (k === 'toggle') return raw ? 'On' : 'Off';
+    if (k === 'int') return `${(d.type & 15) === 15 ? int16(raw) : raw}${unitOf(d) ? ' ' + unitOf(d) : ''}`;
+    if (k === 'cont') { const v = toDisplay(d, raw); return `${fmtNum(d, v)}${unitOf(d) ? ' ' + unitOf(d) : ''}`; }
+    return String(raw);
+  }
+
+  /* ---- Huffman encoder matching the decoder above (codes capped at 13 bits, like Fractal's own) ---- */
+  function compress(bytes) {
+    let freq = new Array(256).fill(0); for (const x of bytes) freq[x]++;
+    let tree;
+    for (let tries = 0; ; tries++) {
+      // Same construction as Fractal's encoder: symbols in ascending order, equal weights taken
+      // newest-first, smaller weight on the left. Reproduces their trees bit for bit.
+      let nodes = [], seq = 0; freq.forEach((f, v) => { if (f) nodes.push({ f, v, s: seq++ }); });
+      if (nodes.length === 1) nodes.push({ f: 0, v: (nodes[0].v + 1) & 255, s: seq++ });
+      while (nodes.length > 1) { nodes.sort((a, b) => a.f - b.f || b.s - a.s); const [a, b] = nodes.splice(0, 2); nodes.push({ f: a.f + b.f, l: a, r: b, s: seq++ }); }
+      tree = nodes[0];
+      const depth = n => n.v !== undefined ? 0 : 1 + Math.max(depth(n.l), depth(n.r));
+      if (depth(tree) <= 13 || tries > 20) break;
+      freq = freq.map(f => f ? Math.ceil(f / 2) : 0);
+    }
+    const codes = {}, out = []; let acc = 0, nb = 0;
+    const put = (v, n) => { for (let i = n - 1; i >= 0; i--) { acc = (acc << 1) | ((v >> i) & 1); if (++nb === 8) { out.push(acc); acc = 0; nb = 0; } } };
+    const ser = (n, code, len) => { if (n.v !== undefined) { put(1, 1); put(n.v, 8); codes[n.v] = [code, len]; } else { put(0, 1); ser(n.l, code << 1, len + 1); ser(n.r, (code << 1) | 1, len + 1); } };
+    ser(tree, 0, 0);
+    for (const x of bytes) { const [c, l] = codes[x]; put(c, l); }
+    if (nb) out.push(acc << (8 - nb));
+    return out;
+  }
+  function packBody(p) {
+    const c = p.contents, bytes = [];
+    for (const v of c.words) bytes.push(v & 255, v >> 8);
+    if (c.oddByte !== null) bytes.push(c.oddByte);
+    return bytes;
+  }
+
+  function splitSysex(bytes) {
+    const msgs = []; let i = 0;
+    while (i < bytes.length) {
+      const s = bytes.indexOf(0xF0, i); if (s < 0) break;
+      const e = bytes.indexOf(0xF7, s); if (e < 0) break;
+      msgs.push(bytes.slice(s, e + 1)); i = e + 1;
+    }
+    return msgs;
+  }
+  const isFractal = m => m.length >= 8 && m[1] === 0 && m[2] === 1 && m[3] === 0x74;
+
+  function decodeWords(m) { const w = []; for (let p = 8; p + 3 <= m.length - 2; p += 3) w.push(m[p] | m[p + 1] << 7 | m[p + 2] << 14); return w; }
+  function encodeData(orig, words) {
+    const m = new Uint8Array(orig.length); m.set(orig.subarray(0, 8));
+    let p = 8; for (const v of words) { m[p++] = v & 0x7f; m[p++] = (v >> 7) & 0x7f; m[p++] = (v >> 14) & 0x03; }
+    m[m.length - 2] = xorCks(m, m.length - 2); m[m.length - 1] = 0xF7; return m;
+  }
+
+  // Parse one file -> { presets:[], ignored:string|null }
+  function parseFile(bytes, srcName) {
+    const msgs = splitSysex(bytes).filter(isFractal);
+    const presets = []; let cur = null; const other = new Set();
+    for (const m of msgs) {
+      const fn = m[5];
+      if (fn === 0x77) { cur = { msgs: [m] }; presets.push(cur); }
+      else if ((fn === 0x78 || fn === 0x79) && cur) { cur.msgs.push(m); if (fn === 0x79) cur = null; }
+      else other.add(fn.toString(16));
+    }
+    if (!presets.length && other.has('52')) return { presets: [], system: buildSystem(msgs, srcName), ignored: null };
+    const out = presets.map((p, i) => build(p.msgs, srcName, presets.length > 1 ? i : null));
+    let ignored = null;
+    if (!out.length) ignored = !msgs.length ? 'no Fractal SysEx data found'
+      : other.has('52') ? 'VP4 system settings (global setup): a System view is not available yet'
+      : other.has('7b') || other.has('7a') ? 'user cab (IR) bank: not handled by this editor'
+      : `not a preset file (SysEx function 0x${[...other].join(', 0x')})`;
+    return { presets: out, ignored };
+  }
+
+  function build(msgs, srcName, index) {
+    const hdr = msgs[0], data = msgs.filter(m => m[5] === 0x78), ftr = msgs.find(m => m[5] === 0x79);
+    const words = []; data.forEach(m => words.push(...decodeWords(m)));
+    const p = { srcName, index, msgs, words, model: hdr[4], bank: hdr[6], slot: hdr[7], checks: [] };
+    p.origBank = p.bank; p.origSlot = p.slot;
+    p.name = p.origName = readName(words);
+    validate(p, hdr, data, ftr);
+    return p;
+  }
+
+  function readName(w) {
+    let s = '';
+    for (let k = 4; k < 20 && k < w.length; k++) for (const c of [w[k] & 255, w[k] >> 8]) { if (c === 0) return s.replace(/\s+$/, ''); s += String.fromCharCode(c); }
+    return s.replace(/\s+$/, '');
+  }
+
+  function validate(p, hdr, data, ftr) {
+    const c = p.checks, add = (lvl, t) => c.push({ lvl, t });
+    add(p.model === MODEL ? 'ok' : 'warn', p.model === MODEL ? 'Device: VP4 (model 0x14)' : `Model byte 0x${p.model.toString(16)}: not a VP4 preset`);
+    const bad = p.msgs.filter(m => xorCks(m, m.length - 2) !== m[m.length - 2]).length;
+    add(bad ? 'bad' : 'ok', bad ? `${bad} of ${p.msgs.length} SysEx checksums are wrong` : `All ${p.msgs.length} SysEx checksums valid`);
+    add(ftr ? 'ok' : 'bad', ftr ? 'Header, data and end messages present' : 'End message (0x79) missing: file is truncated');
+    const wc = hdr.length >= 11 ? hdr[8] | hdr[9] << 7 | hdr[10] << 14 : -1;
+    add(p.words.length === wc ? 'ok' : 'bad', `${p.words.length} data words (header says ${wc})`);
+    add(p.words[1] === 0xAA55 ? 'ok' : 'bad', p.words[1] === 0xAA55 ? 'Preset signature 0xAA55 found' : 'Preset signature 0xAA55 missing');
+    if (p.bank >= BANKS || p.slot >= SLOTS) add('warn', `Slot outside A1–Z4 (bank ${p.bank}, slot ${p.slot})`);
+    p.footer = ftr ? ftr[6] | ftr[7] << 7 | ftr[8] << 14 : null;
+    const crcOk = crcWords(p.words) === p.words[2], ftOk = p.footer === xorWords(p.words);
+    add(crcOk ? 'ok' : 'bad', crcOk ? 'Data CRC valid' : 'Data CRC wrong: preset data is corrupted');
+    if (ftr) add(ftOk ? 'ok' : 'bad', ftOk ? 'End checksum valid' : 'End checksum wrong');
+    const csz = p.words[37], usz = p.words[36];
+    try {
+      p.contents = readContents(p.words);
+      const fits = Math.abs(p.contents.usedBytes - csz) <= 1;
+      add(fits ? 'ok' : 'warn', `Compressed body: ${csz} bytes → ${usz} bytes, ${p.contents.blocks.length} sections decoded${fits ? '' : ' (size field does not match)'}`);
+    } catch (e) { add('bad', `Could not unpack preset body: ${e.message}`); }
+    p.valid = !c.some(x => x.lvl === 'bad');
+  }
+
+  const slotLabel = (b, s) => (b < 26 ? String.fromCharCode(65 + b) : '?' + b) + (s + 1);
+  const cleanName = s => s.replace(/[^\x20-\x7e]/g, '').slice(0, NAME_LEN);
+  const fileName = p => `${slotLabel(p.bank, p.slot)}_${p.name.replace(/[<>:"/\\|?*]/g, '').trim() || 'Untitled'}.syx`;
+  const isModified = p => p.name !== p.origName || p.bank !== p.origBank || p.slot !== p.origSlot || !!p.bodyDirty;
+
+  // Rebuild the preset's SysEx with current name / slot / body. An unedited body is kept
+  // byte-for-byte; an edited one is re-compressed. CRC and end checksum follow the words.
+  function serialize(p) {
+    const out = [];
+    const words = p.words.slice();
+    if (p.name !== p.origName) {
+      const n = cleanName(p.name).padEnd(NAME_LEN, ' ') + '\0';
+      for (let i = 0; i < 16; i++) words[4 + i] = n.charCodeAt(2 * i) | n.charCodeAt(2 * i + 1) << 8;
+    }
+    if (p.bodyDirty) {
+      const bytes = packBody(p), comp = compress(bytes);
+      if (38 + Math.ceil(comp.length / 2) > words.length) throw new Error('Edited preset no longer fits in a preset slot');
+      words[36] = bytes.length; words[37] = comp.length;
+      for (let k = 38; k < words.length; k++) { const i = (k - 38) * 2; words[k] = (comp[i] ?? 0) | (comp[i + 1] ?? 0) << 8; }
+    }
+    const changed = words.some((v, i) => v !== p.words[i]);
+    if (changed) words[2] = crcWords(words);
+    const ft = xorWords(words);
+    let wi = 0;
+    for (const m of p.msgs) {
+      const fn = m[5];
+      if (fn === 0x77) {
+        const h = m.slice(); h[6] = p.bank; h[7] = p.slot; h[h.length - 2] = xorCks(h, h.length - 2); out.push(h);
+      } else if (fn === 0x78) {
+        const n = (m.length - 10) / 3; out.push(encodeData(m, words.slice(wi, wi + n))); wi += n;
+      } else if (fn === 0x79 && changed) {
+        const f = m.slice(); f[6] = ft & 0x7f; f[7] = (ft >> 7) & 0x7f; f[8] = (ft >> 14) & 0x03; f[f.length - 2] = xorCks(f, f.length - 2); out.push(f);
+      } else out.push(m);
+    }
+    const len = out.reduce((a, m) => a + m.length, 0), b = new Uint8Array(len);
+    let o = 0; for (const m of out) { b.set(m, o); o += m.length; }
+    return b;
+  }
+
+  // Minimal ZIP writer (store, no compression)
+  const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+  const crc32 = b => { let c = 0xFFFFFFFF; for (let i = 0; i < b.length; i++) c = CRC[(c ^ b[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+  function zip(files) {
+    const enc = new TextEncoder(), parts = [], cen = []; let off = 0;
+    const d = new Date(), dt = ((d.getFullYear() - 1980) << 9 | (d.getMonth() + 1) << 5 | d.getDate()), tm = (d.getHours() << 11 | d.getMinutes() << 5 | (d.getSeconds() >> 1));
+    for (const f of files) {
+      const nm = enc.encode(f.name), crc = crc32(f.data), sz = f.data.length;
+      const lh = new DataView(new ArrayBuffer(30));
+      [[0, 0x04034b50, 4], [4, 20, 2], [6, 0x0800, 2], [8, 0, 2], [10, tm, 2], [12, dt, 2], [14, crc, 4], [18, sz, 4], [22, sz, 4], [26, nm.length, 2], [28, 0, 2]].forEach(([o, v, n]) => n === 4 ? lh.setUint32(o, v, true) : lh.setUint16(o, v, true));
+      parts.push(new Uint8Array(lh.buffer), nm, f.data);
+      const ch = new DataView(new ArrayBuffer(46));
+      [[0, 0x02014b50, 4], [4, 20, 2], [6, 20, 2], [8, 0x0800, 2], [10, 0, 2], [12, tm, 2], [14, dt, 2], [16, crc, 4], [20, sz, 4], [24, sz, 4], [28, nm.length, 2], [30, 0, 2], [32, 0, 2], [34, 0, 2], [36, 0, 2], [38, 0, 4], [42, off, 4]].forEach(([o, v, n]) => n === 4 ? ch.setUint32(o, v, true) : ch.setUint16(o, v, true));
+      cen.push(new Uint8Array(ch.buffer), nm);
+      off += 30 + nm.length + sz;
+    }
+    const cenLen = cen.reduce((a, b) => a + b.length, 0), end = new DataView(new ArrayBuffer(22));
+    [[0, 0x06054b50, 4], [4, 0, 2], [6, 0, 2], [8, files.length, 2], [10, files.length, 2], [12, cenLen, 4], [16, off, 4], [20, 0, 2]].forEach(([o, v, n]) => n === 4 ? end.setUint32(o, v, true) : end.setUint16(o, v, true));
+    return [...parts, ...cen, new Uint8Array(end.buffer)];
+  }
+
+  /* ---- System (global setup) file ----
+     fn 0x51 header: word count (2 bytes); fn 0x52 data: same 3-byte word packing as presets;
+     fn 0x53 footer: XOR of all words. Word index = Global parameter id. */
+  const SYSDEFS = {"lists":[["0 dB","6 dB","12 dB","18 dB"],["MONO (LEFT ONLY)","STEREO"],["ANALOG","SPDIF","USB (CHANNELS 3/4)"],["STEREO","SUM L+R","COPY L->R","MUTE"],["NORMAL","INVERT"],["STEREO","LEFT ONLY","RIGHT ONLY","SUM L+R"],["INPUT","NONE"],["DISABLED","GIG MODE","CUSTOM MODE"],["DISABLED","MODE SELECT","PRESET MODE","SCENE MODE","EFFECTS MODE","TUNER MODE","BANK -1","BANK +1","PRESET -1","PRESET +1","SCENE -1","SCENE +1","CHANNEL PICKER","VP4 BYPASS"],["0.25 SECONDS","0.50 SECONDS","0.75 SECONDS","1.00 SECONDS","1.25 SECONDS","1.50 SECONDS","1.75 SECONDS","2.00 SECONDS"],["DISABLED","MODE SELECT","PRESET MODE","SCENE MODE","EFFECTS MODE","TUNER MODE","BANK -1","BANK +1","PRESET -1","PRESET +1","SCENE -1","SCENE +1","VP4 BYPASS"],["1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","OMNI"],["OFF","ON"],["OFF","CHAN 1","CHAN 2","CHAN 3","CHAN 4","CHAN 5","CHAN 6","CHAN 7","CHAN 8","CHAN 9","CHAN 10","CHAN 11","CHAN 12","CHAN 13","CHAN 14","CHAN 15","CHAN 16","OMNI"],["CC #1","CC #2","CC #3","CC #4","CC #5","CC #6","CC #7","CC #8","CC #9","CC #10","CC #11","CC #12","CC #13","CC #14","CC #15","CC #16","CC #17","CC #18","CC #19","CC #20","CC #21","CC #22","CC #23","CC #24","CC #25","CC #26","CC #27","CC #28","CC #29","CC #30","CC #31","CC #32","CC #33","CC #34","CC #35","CC #36","CC #37","CC #38","CC #39","CC #40","CC #41","CC #42","CC #43","CC #44","CC #45","CC #46","CC #47","CC #48","CC #49","CC #50","CC #51","CC #52","CC #53","CC #54","CC #55","CC #56","CC #57","CC #58","CC #59","CC #60","CC #61","CC #62","CC #63","CC #64","CC #65","CC #66","CC #67","CC #68","CC #69","CC #70","CC #71","CC #72","CC #73","CC #74","CC #75","CC #76","CC #77","CC #78","CC #79","CC #80","CC #81","CC #82","CC #83","CC #84","CC #85","CC #86","CC #87","CC #88","CC #89","CC #90","CC #91","CC #92","CC #93","CC #94","CC #95","CC #96","CC #97","CC #98","CC #99","CC #100","CC #101","CC #102","CC #103","CC #104","CC #105","CC #106","CC #107","CC #108","CC #109","CC #110","CC #111","CC #112","CC #113","CC #114","CC #115","CC #116","CC #117","CC #118","CC #119","CC #120","CC #121","CC #122","CC #123","CC #124","CC #125","CC #126","CC #127","NONE","PEDAL 1","PEDAL 2"],["CC #1","CC #2","CC #3","CC #4","CC #5","CC #6","CC #7","CC #8","CC #9","CC #10","CC #11","CC #12","CC #13","CC #14","CC #15","CC #16","CC #17","CC #18","CC #19","CC #20","CC #21","CC #22","CC #23","CC #24","CC #25","CC #26","CC #27","CC #28","CC #29","CC #30","CC #31","CC #32","CC #33","CC #34","CC #35","CC #36","CC #37","CC #38","CC #39","CC #40","CC #41","CC #42","CC #43","CC #44","CC #45","CC #46","CC #47","CC #48","CC #49","CC #50","CC #51","CC #52","CC #53","CC #54","CC #55","CC #56","CC #57","CC #58","CC #59","CC #60","CC #61","CC #62","CC #63","CC #64","CC #65","CC #66","CC #67","CC #68","CC #69","CC #70","CC #71","CC #72","CC #73","CC #74","CC #75","CC #76","CC #77","CC #78","CC #79","CC #80","CC #81","CC #82","CC #83","CC #84","CC #85","CC #86","CC #87","CC #88","CC #89","CC #90","CC #91","CC #92","CC #93","CC #94","CC #95","CC #96","CC #97","CC #98","CC #99","CC #100","CC #101","CC #102","CC #103","CC #104","CC #105","CC #106","CC #107","CC #108","CC #109","CC #110","CC #111","CC #112","CC #113","CC #114","CC #115","CC #116","CC #117","CC #118","CC #119","CC #120","CC #121","CC #122","CC #123","CC #124","CC #125","CC #126","CC #127","NONE"],["CC #1","CC #2","CC #3","CC #4","CC #5","CC #6","CC #7","CC #8","CC #9","CC #10","CC #11","CC #12","CC #13","CC #14","CC #15","CC #16","CC #17","CC #18","CC #19","CC #20","CC #21","CC #22","CC #23","CC #24","CC #25","CC #26","CC #27","CC #28","CC #29","CC #30","CC #31","CC #32","CC #33","CC #34","CC #35","CC #36","CC #37","CC #38","CC #39","CC #40","CC #41","CC #42","CC #43","CC #44","CC #45","CC #46","CC #47","CC #48","CC #49","CC #50","CC #51","CC #52","CC #53","CC #54","CC #55","CC #56","CC #57","CC #58","CC #59","CC #60","CC #61","CC #62","CC #63","CC #64","CC #65","CC #66","CC #67","CC #68","CC #69","CC #70","CC #71","CC #72","CC #73","CC #74","CC #75","CC #76","CC #77","CC #78","CC #79","CC #80","CC #81","CC #82","CC #83","CC #84","CC #85","CC #86","CC #87","CC #88","CC #89","CC #90","CC #91","CC #92","CC #93","CC #94","CC #95","CC #96","CC #97","CC #98","CC #99","CC #100","CC #101","CC #102","CC #103","CC #104","CC #105","CC #106","CC #107","CC #108","CC #109","CC #110","CC #111","CC #112","CC #113","CC #114","CC #115","CC #116","CC #117","CC #118","CC #119","CC #120","CC #121","CC #122","CC #123","CC #124","CC #125","CC #126","CC #127"],["DISABLED","ENABLED"],["PRESET","SCENE","EFFECTS"],["OFF","DELAY","REVERB","DLY & REV","ALL"],["AS SAVED","SCENE 1","SCENE 2","SCENE 3","SCENE 4"],["AVERAGE","LAST TWO"],["50 Hz","60 Hz"],["OFF","1 second","2 seconds","3 seconds","4 seconds","5 seconds","6 seconds","7 seconds","8 seconds","9 seconds","10 seconds"],["NONE","1 SEMITONE","2 SEMITONES","3 SEMITONES","4 SEMITONES"],["MIXED","ALL FLATS","ALL SHARPS"],["Auto In","Auto Out","Manual In","Manual Out"]],"groups":[["Audio",[["Input",[[47,"Analog Input Pad",29,0,3,0,0,0],[53,"Input Mode",29,0,1,0,0,1],[52,"Input Source",29,0,2,0,0,2]]],["Output",[[48,"Output Mode",29,0,3,0,0,3],[49,"Output Phase",29,0,1,0,0,4]]],["SPDIF",[[97,"SPDIF In Level",97,-40,20,1,0.1,-1],[153,"SPDIF Input Mode",29,0,3,0,0,5]]],["Playback level",[[99,"USB 1/2 Level",97,-40,20,1,0.1,-1],[100,"USB 3/4 Level",97,-40,20,1,0.1,-1],[98,"USB 3/4 Record Source",29,0,1,0,0,6]]]]],["Footswitches",[["",[[146,"Footswitch Mode",16,0,2,1,1,7],[132,"Press & Hold 1",16,0,13,1,1,8],[133,"Press & Hold 2",16,0,13,1,1,8],[134,"Press & Hold 3",16,0,13,1,1,8],[135,"Press & Hold 4",16,0,13,1,1,8],[57,"Hold Timeout",29,0,7,0,0,9],[154,"Tap 1+2",16,0,13,1,1,10],[155,"Tap 2+3",16,0,13,1,1,10],[156,"Tap 3+4",16,0,13,1,1,10]]]]],["MIDI/Remote",[["General",[[58,"MIDI Channel",29,0,16,0,0,11],[59,"MIDI Thru",29,0,1,0,0,12],[109,"Receive MIDI PC (?)",29,0,1,0,0,12],[63,"Send MIDI PC",29,0,17,1,0,13],[77,"Ignore Redundant PC (?)",29,0,1,1,1,12]]],["Presets",[[93,"Preset +1 (?)",45,1,130,1,1,14],[94,"Preset -1 (?)",45,1,130,1,1,14]]],["Scenes",[[74,"Scene Select",45,1,128,1,1,15],[75,"Scene +1 (?)",45,1,130,1,1,14],[76,"Scene -1 (?)",45,1,130,1,1,14],[149,"Send Scene Sync Ch",29,0,17,1,0,13],[150,"Send Scene Sync CC",45,1,127,1,1,16]]],["Modes",[[157,"Mode Select (?)",45,1,130,1,1,14],[158,"Preset Mode (?)",45,1,130,1,1,14],[159,"Scene Mode (?)",45,1,130,1,1,14],[160,"Effects Mode (?)",45,1,130,1,1,14],[161,"Mode CC #161 (?)",45,1,130,1,1,14],[162,"Mode CC #162 (?)",45,1,128,1,1,15]]],["Control",[[70,"Input Volume (?)",45,1,130,1,1,14],[71,"Output Volume (?)",45,1,130,1,1,14],[72,"Tap Tempo (?)",45,1,130,1,1,14],[131,"Tuner (?)",45,1,130,1,1,14],[73,"Control CC #73 (?)",45,1,130,1,1,14]]],["Bypass / Channel",[[110,"VP4 Bypass (?)",45,1,130,1,1,14],[114,"Bypass FX1 (?)",45,1,130,1,1,14],[115,"Bypass FX2 (?)",45,1,128,1,1,15],[116,"Bypass FX3 (?)",45,1,128,1,1,15],[117,"Bypass FX4 (?)",45,1,128,1,1,15],[111,"Channel FX1 (?)",45,1,130,1,1,14],[112,"Channel FX2 (?)",45,1,130,1,1,14],[113,"Channel FX3 (?)",45,1,130,1,1,14],[118,"Channel FX4 (?)",45,1,128,1,1,15]]],["External",[[119,"External 1 (?)",32,1,130,1,1,14],[120,"External 2 (?)",32,1,130,1,1,14],[121,"External 3 (?)",32,1,130,1,1,14],[122,"External 4 (?)",32,1,130,1,1,14]]]]],["Global",[["General",[[129,"Automatic VP4 Bypass (?)",16,0,1,0,0,12],[147,"4CM Routing",16,0,1,1,1,17],[137,"Startup Mode",16,0,2,1,0,18],[143,"Gapless Changes (?)",16,0,1,1,1,12],[15,"Spillover",29,0,4,0,0,19],[86,"Default Scene",29,0,4,0,0,20],[46,"Tap Tempo Mode",29,0,1,0,0,21],[90,"AC Line Frequency",29,0,1,0,0,22],[45,"Noisegate Offset",49,-40,40,1,0.1,-1]]],["Modeling",[[56,"LCD Contrast",53,0,1,100,0.001,-1],[88,"Switch LED Bright",53,1,100,1,1,-1],[89,"Switch LED Dim",53,1,100,1,1,-1],[145,"Fade Timeout",16,0,10,1,1,23]]]]],["Tuner",[["",[[13,"Calibration",50,430,450,1,0.1,-1],[103,"Downtune",29,0,4,0,0,24],[104,"Display Mode",16,0,2,1,1,25],[14,"Tuner Mute (?)",29,0,3,0,0,26],[16,"Use Offsets",29,0,1,0,0,12],[17,"Offset E 1",55,-25,25,1,0.05,-1],[18,"Offset B 2",55,-25,25,1,0.05,-1],[19,"Offset G 3",55,-25,25,1,0.05,-1],[20,"Offset D 4",55,-25,25,1,0.05,-1],[21,"Offset A 5",55,-25,25,1,0.05,-1],[22,"Offset E 6",55,-25,25,1,0.05,-1]]]]],["Other",[["Not yet identified",[[60,"Setting #60 (?)",29,0,1,0,0,12],[138,"Setting #138 (?)",16,0,5,1,0,-1],[151,"Metronome (?)",16,0,1,1,0,12],[152,"Metronome CC (?)",32,1,130,1,1,14]]]]]]};
+  // [{ group, sections: [{ title, items }], items }] - tabs and sections as on VP4-Edit's Setup pages
+  function systemDefs() {
+    const def = ([id, name, type, min, max, f3, f4, li]) => ({ id, name, named: true, type, min, max, f3, f4, strs: li >= 0 ? SYSDEFS.lists[li] : null });
+    return (SYSDEFS.groups || []).map(([group, secs]) => { const sections = secs.map(([title, items]) => ({ title, items: items.map(def) })); return { group, sections, items: sections.flatMap(s => s.items) }; });
+  }
+  function buildSystem(msgs, srcName) {
+    const hdr = msgs.find(m => m[5] === 0x51), data = msgs.filter(m => m[5] === 0x52), ftr = msgs.find(m => m[5] === 0x53);
+    const words = []; data.forEach(m => words.push(...decodeWords(m)));
+    const s = { kind: 'system', srcName, msgs, words, origWords: words.slice(), model: (hdr || msgs[0])[4], checks: [] };
+    const add = (lvl, t) => s.checks.push({ lvl, t });
+    add(s.model === MODEL ? 'ok' : 'warn', s.model === MODEL ? 'Device: VP4 (model 0x14)' : `Model byte 0x${s.model.toString(16)}: not a VP4 system file (view only)`);
+    const bad = msgs.filter(m => xorCks(m, m.length - 2) !== m[m.length - 2]).length;
+    add(bad ? 'bad' : 'ok', bad ? `${bad} SysEx checksums are wrong` : `All ${msgs.length} SysEx checksums valid`);
+    const wc = hdr ? hdr[6] | hdr[7] << 7 : -1;
+    add(wc === words.length ? 'ok' : 'warn', `${words.length} setting words (header says ${wc})`);
+    const ft = ftr ? ftr[6] | ftr[7] << 7 | ftr[8] << 14 : null;
+    add(ftr && ft === xorWords(words) ? 'ok' : 'bad', ftr ? (ft === xorWords(words) ? 'End checksum valid' : 'End checksum wrong') : 'End message missing');
+    s.valid = !s.checks.some(c => c.lvl === 'bad');
+    return s;
+  }
+  const isSystemModified = s => s.words.some((v, i) => v !== s.origWords[i]);
+  function serializeSystem(s) {
+    const changed = isSystemModified(s), ft = xorWords(s.words), out = []; let wi = 0;
+    for (const m of s.msgs) {
+      if (m[5] === 0x52) { const n = (m.length - 10) / 3; out.push(changed ? encodeData(m, s.words.slice(wi, wi + n)) : m); wi += n; }
+      else if (m[5] === 0x53 && changed) { const f = m.slice(); f[6] = ft & 0x7f; f[7] = (ft >> 7) & 0x7f; f[8] = (ft >> 14) & 0x03; f[f.length - 2] = xorCks(f, f.length - 2); out.push(f); }
+      else out.push(m);
+    }
+    const b = new Uint8Array(out.reduce((a, m) => a + m.length, 0)); let o = 0; for (const m of out) { b.set(m, o); o += m.length; }
+    return b;
+  }
+
+  // Re-read the body from the original words (used by Revert)
+  const resetBody = p => { p.contents = readContents(p.words); p.bodyDirty = false; };
+
+  return { MODEL, BANKS, SLOTS, NAME_LEN, parseFile, serialize, slotLabel, cleanName, fileName, isModified, zip, blockInfo, crcWords, xorWords,
+    systemDefs, serializeSystem, isSystemModified, enumSelect, enumOff,
+    paramDefs, fmtNum, kindOf, unitOf, formatValue, toDisplay, fromDisplay, decimals, int16, setSceneName, resetBody, compress, decompress };
+})();
+if (typeof module !== 'undefined') module.exports = VP4;
+</script>
+
+<script>
+const $ = s => document.querySelector(s);
+let presets = [], systems = [], ignored = [], selId = null, nextId = 1;
+const checked = new Set();
+
+function toast(t) { const e = $('#toast'); e.textContent = t; e.style.display = 'block'; clearTimeout(toast.h); toast.h = setTimeout(() => e.style.display = 'none', 2600); }
+const esc = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const slotKey = p => p.bank * 4 + p.slot;
+
+async function loadFiles(fileList) {
+  const files = [...fileList].filter(f => /\.syx$/i.test(f.name));
+  if (!files.length) { toast('No .syx files found'); return; }
+  let added = 0, sysAdded = 0;
+  for (const f of files) {
+    const bytes = new Uint8Array(await f.arrayBuffer());
+    const src = f.webkitRelativePath || f.name;
+    const r = VP4.parseFile(bytes, src);
+    if (r.ignored) ignored.push(`${src}: ${r.ignored}`);
+    for (const p of r.presets) { p.id = nextId++; presets.push(p); added++; }
+    if (r.system) { r.system.id = nextId++; systems.push(r.system); sysAdded++; }
+  }
+  if (selId == null) selId = presets[0]?.id ?? null;
+  if (sysAdded && !added) uiTop = 'system';
+  render();
+  toast(`Loaded ${added} preset${added === 1 ? '' : 's'}${sysAdded ? ` and ${sysAdded} system file${sysAdded > 1 ? 's' : ''}` : ''}`);
+}
+
+function conflicts() { const m = new Map(); presets.forEach(p => m.set(slotKey(p), (m.get(slotKey(p)) || 0) + 1)); return m; }
+
+function render(withDetail = true) {
+  const cf = conflicts();
+  const anyFile = presets.length > 0 || systems.length > 0, any = presets.length > 0;
+  $('#btnZip').disabled = $('#btnClear').disabled = !anyFile; $('#btnBank').disabled = !any;
+  renderTop();
+  $('#drop').style.display = any ? 'none' : '';
+  const nConf = [...cf.values()].filter(v => v > 1).length;
+  $('#countInfo').textContent = any ? `${presets.length} loaded${nConf ? ` · ${nConf} slot conflict${nConf > 1 ? 's' : ''}` : ''}` : '';
+
+  // grid
+  const g = $('#grid'); let h = '';
+  for (let b = 0; b < VP4.BANKS; b++) {
+    h += `<div class="bk">${String.fromCharCode(65 + b)}</div>`;
+    for (let s = 0; s < 4; s++) {
+      const here = presets.filter(p => p.bank === b && p.slot === s);
+      const p = here.find(x => x.id === selId) || here[0];
+      if (!p) { h += `<div class="cell empty" data-b="${b}" data-s="${s}"><span class="num">${VP4.slotLabel(b, s)}</span>—</div>`; continue; }
+      const cls = ['cell', 'filled', p.id === selId || here.some(x => x.id === selId) ? 'sel' : '', here.length > 1 ? 'conflict' : '', here.some(VP4.isModified) ? 'mod' : '', p.valid ? '' : 'bad'].join(' ');
+      h += `<div class="${cls}" draggable="true" data-id="${p.id}" data-b="${b}" data-s="${s}" title="${esc(p.name)}${here.length > 1 ? ` (+${here.length - 1} more on this slot)` : ''}"><span class="num">${VP4.slotLabel(b, s)}${here.length > 1 ? ' ×' + here.length : ''}</span><span class="nm">${esc(p.name || '(no name)')}</span></div>`;
+    }
+  }
+  g.innerHTML = h;
+
+  // list
+  const rows = presets.slice().sort((a, b) => slotKey(a) - slotKey(b) || a.id - b.id);
+  $('#list').innerHTML = !any ? '' : `<table><thead><tr><th></th><th>Slot</th><th>Name</th><th>Status</th><th>Source</th></tr></thead><tbody>${rows.map(p => {
+    const st = !p.valid ? '<span class="pill bad">invalid</span>' : cf.get(slotKey(p)) > 1 ? '<span class="pill warn">conflict</span>' : VP4.isModified(p) ? '<span class="pill mod">edited</span>' : '<span class="pill ok">ok</span>';
+    return `<tr class="row ${p.id === selId ? 'sel' : ''}" data-id="${p.id}"><td><input type="checkbox" data-chk="${p.id}" ${checked.has(p.id) ? 'checked' : ''}></td><td>${VP4.slotLabel(p.bank, p.slot)}</td><td>${esc(p.name)}</td><td>${st}</td><td class="src" title="${esc(p.srcName)}">${esc(p.srcName)}${p.index != null ? ' #' + (p.index + 1) : ''}</td></tr>`;
+  }).join('')}</tbody></table>`;
+  $('#ignored').innerHTML = ignored.length ? `<details><summary>${ignored.length} other file${ignored.length > 1 ? 's' : ''} in the selection (not presets)</summary>${ignored.map(esc).join('<br>')}</details>` : '';
+  $('#selAll').checked = any && presets.every(p => checked.has(p.id));
+  if (withDetail) renderDetail();
+  else { const r = $('#btnRevert'), p = presets.find(x => x.id === selId); if (r && p) r.disabled = !VP4.isModified(p); }
+}
+
+function safeSerialize(p) {
+  try { return VP4.serialize(p); } catch (e) { alert(`${VP4.slotLabel(p.bank, p.slot)} ${p.name}: ${e.message}`); throw e; }
+}
+
+let uiSysGroup = 0, uiTop = 'presets', uiSysIdx = 0;
+
+function renderTop() {
+  document.querySelectorAll('.ttab').forEach(b => {
+    b.classList.toggle('on', b.dataset.top === uiTop);
+    if (b.dataset.top === 'system') b.innerHTML = `System${systems.length ? ` <span class="cnt">${systems.some(VP4.isSystemModified) ? '<span class="dot"></span>' : ''}</span>` : ''}`;
+  });
+  $('#presetMain').hidden = uiTop !== 'presets';
+  $('#sysMain').hidden = uiTop !== 'system';
+  if (uiTop === 'system') renderSystem();
+}
+
+function renderSystem() {
+  const d = $('#sysDetail');
+  if (!systems.length) { d.innerHTML = '<div class="empty">No system file loaded. Open a VP4 backup folder or a <span class="mono">…-system.syx</span> file to see the global settings here.</div>'; return; }
+  uiSysIdx = Math.min(uiSysIdx, systems.length - 1);
+  const s = systems[uiSysIdx], groups = VP4.systemDefs(), editable = s.model === VP4.MODEL;
+  uiSysGroup = Math.min(uiSysGroup, groups.length - 1);
+  const g = groups[uiSysGroup], mod = VP4.isSystemModified(s);
+  const row = dd => {
+    const raw = s.words[dd.id];
+    if (raw === undefined) return `<tr><td class="pn">${esc(dd.name)}</td><td class="pc" colspan="3"><span class="unit">not in this file (older firmware)</span></td></tr>`;
+    const kind = VP4.kindOf(dd), chg = raw !== s.origWords[dd.id];
+    let ctl = '', val = '';
+    if (!editable) ctl = esc(VP4.formatValue(dd, raw));
+    else if (kind === 'enum') ctl = VP4.enumSelect(`data-sk="${dd.id}"`, dd, raw);
+    else if (kind === 'cont') { const v = VP4.toDisplay(dd, raw); ctl = `<input type="range" data-sk="${dd.id}" min="0" max="65534" step="1" value="${raw}">`; val = `<input type="text" class="vnum" data-sk="${dd.id}" value="${VP4.fmtNum(dd, v)}"> <span class="unit">${esc(VP4.unitOf(dd))}</span>`; }
+    else ctl = `<input type="number" class="vint" data-sk="${dd.id}" min="${kind === 'int' ? dd.min : 0}" max="${kind === 'int' ? dd.max : 65535}" step="1" value="${raw}">`;
+    return `<tr class="${chg ? 'chg' : ''}" title="${chg ? 'Was: ' + esc(VP4.formatValue(dd, s.origWords[dd.id])) : ''}"><td class="pn">${esc(dd.name)}</td><td class="pc">${ctl}</td><td class="pv">${val}</td><td class="pr">${chg && editable ? `<button class="mini" data-sreset="${dd.id}" title="Back to the original value">↺</button>` : ''}</td></tr>`;
+  };
+  const rows = g.sections.map(sec => (sec.title ? `<tr class="grp"><td colspan="4">${esc(sec.title)}</td></tr>` : '') + sec.items.map(row).join('')).join('');
+  const changedIn = gi => groups[gi].items.some(dd => s.words[dd.id] !== s.origWords[dd.id]);
+  d.innerHTML = `
+    <div class="row-inline" style="justify-content:space-between">
+      <div>${systems.length > 1 ? `<select id="sysPick">${systems.map((x, i) => `<option value="${i}" ${i === uiSysIdx ? 'selected' : ''}>${esc(x.srcName)}</option>`).join('')}</select>` : `<span class="hint">${esc(s.srcName)}</span>`}</div>
+      <div class="row-inline">
+        <button class="primary" id="btnSysSave">Download .syx</button>
+        <button id="btnSysRevert" ${mod ? '' : 'disabled'}>Revert changes</button>
+        <button id="btnSysRemove">Remove</button>
+      </div>
+    </div>
+    ${editable ? '' : '<div class="hint" style="margin-top:8px">Not a VP4 system file: shown read-only.</div>'}
+    <div class="sysgrid">
+      <div class="sysnav" role="tablist">${groups.map((gr, i) => `<button class="${i === uiSysGroup ? 'on' : ''}" data-sg="${i}" role="tab">${esc(gr.group)}${changedIn(i) ? ' <span class="dot"></span>' : ''}</button>`).join('')}</div>
+      <div><table class="params sysparams"><tbody>${rows}</tbody></table>
+        <div class="hint" style="margin-top:10px">Names follow VP4-Edit's Setup pages. Settings marked (?) could not be confirmed from the data yet.</div>
+        <details style="margin-top:14px"><summary class="hint">Validation</summary><ul class="checks">${s.checks.map(c => `<li class="${c.lvl}">${esc(c.t)}</li>`).join('')}</ul></details></div>
+    </div>`;
+  const base = s.srcName.split(/[\\/]/).pop();
+  $('#btnSysSave').onclick = () => download(base, VP4.serializeSystem(s));
+  $('#btnSysRevert').onclick = () => { s.words = s.origWords.slice(); render(); };
+  $('#btnSysRemove').onclick = () => { if (mod && !confirm('Discard the changes to these system settings?')) return; systems.splice(uiSysIdx, 1); render(); };
+  if ($('#sysPick')) $('#sysPick').onchange = e => { uiSysIdx = +e.target.value; renderSystem(); };
+  d.querySelectorAll('[data-sg]').forEach(b => b.addEventListener('click', () => { uiSysGroup = +b.dataset.sg; renderSystem(); }));
+  const tbl = d.querySelector('.sysparams'); if (!tbl || !editable) return;
+  const defOf = id => g.items.find(x => x.id === id);
+  const set = (id, raw) => { s.words[id] = raw & 0xffff; renderTop(); };
+  tbl.addEventListener('input', e => {
+    const el = e.target; if (el.type !== 'range') return; const id = +el.dataset.sk, dd = defOf(id);
+    s.words[id] = +el.value; const t = tbl.querySelector(`.vnum[data-sk="${id}"]`); if (t) t.value = VP4.fmtNum(dd, VP4.toDisplay(dd, +el.value));
+  });
+  tbl.addEventListener('change', e => {
+    const el = e.target, id = +el.dataset.sk, dd = defOf(id); if (isNaN(id)) return;
+    if (el.tagName === 'SELECT' || el.type === 'range') set(id, +el.value);
+    else if (el.classList.contains('vnum')) { const x = parseFloat(el.value.replace(',', '.')); if (isNaN(x)) return renderSystem(); set(id, VP4.fromDisplay(dd, x)); }
+    else if (el.classList.contains('vint')) { let x = Math.round(+el.value); if (isNaN(x)) return renderSystem(); x = Math.min(+el.max, Math.max(+el.min, x)); set(id, x); }
+  });
+  tbl.addEventListener('click', e => { const r = e.target.closest('[data-sreset]'); if (r) { const id = +r.dataset.sreset; set(id, s.origWords[id]); } });
+}
+
+function renderDetail() {
+  const p = presets.find(x => x.id === selId), d = $('#detail');
+  if (!p) { d.innerHTML = `<div class="empty">${presets.length ? 'Select a preset.' : 'Open or drop some .syx files to get started.'}</div>`; return; }
+  const cf = conflicts().get(slotKey(p)) > 1;
+  const bankOpts = Array.from({ length: VP4.BANKS }, (_, b) => `<option value="${b}" ${b === p.bank ? 'selected' : ''}>${String.fromCharCode(65 + b)}</option>`).join('');
+  const slotOpts = [0, 1, 2, 3].map(s => `<option value="${s}" ${s === p.slot ? 'selected' : ''}>${s + 1}</option>`).join('');
+  const w = p.words, hx = v => v == null ? '—' : '0x' + v.toString(16).toUpperCase().padStart(4, '0');
+  // Preset tempo = Controllers block (id 2), parameter 28, stored as plain BPM (24-250)
+  const ctl = p.contents && p.contents.blocks.find(b => b.id === 2);
+  if (p.contents && !p.origBody) p.origBody = p.contents.words.slice();
+  const tempo = ctl && ctl.n > 28 ? { at: ctl.at + 28, value: p.contents.words[ctl.at + 28], orig: p.origBody[ctl.at + 28], editable: p.model === VP4.MODEL } : null;
+  if (tempo) tempo.changed = tempo.value !== tempo.orig;
+  d.innerHTML = `
+    <div class="pname"><span class="slot">${VP4.slotLabel(p.bank, p.slot)}:</span>${esc(p.name || '(no name)')}</div>
+    <div class="form">
+      <label for="fName">Name</label>
+      <div><input type="text" id="fName" maxlength="${VP4.NAME_LEN}" value="${esc(p.name)}" style="width:100%" spellcheck="false">
+        <div class="hint"><span id="nameCount">${p.name.length}</span>/${VP4.NAME_LEN} characters · plain ASCII only</div></div>
+      <label>Slot</label>
+      <div class="row-inline"><select id="fBank">${bankOpts}</select><select id="fSlot">${slotOpts}</select>
+        ${cf ? '<span class="pill warn">another loaded preset uses this slot</span>' : ''}</div>
+      ${tempo ? `<label for="fTempo">Tempo</label>
+      <div class="row-inline"><input type="number" id="fTempo" min="24" max="250" step="1" value="${tempo.value}" style="width:80px" ${tempo.editable ? '' : 'disabled'}> <span class="unit">BPM</span>
+        ${tempo.changed ? `<span class="pill mod">was ${tempo.orig}</span>` : ''}</div>` : ''}
+    </div>
+    <div class="actions">
+      <button class="primary" id="btnSave">Download .syx</button>
+      <button id="btnRevert" ${VP4.isModified(p) ? '' : 'disabled'}>Revert changes</button>
+      <button id="btnRemove">Remove from list</button>
+    </div>
+    ${VP4.isModified(p) ? `<div class="hint" style="margin-top:8px">Edited${p.bank !== p.origBank || p.slot !== p.origSlot || p.name !== p.origName ? `, was ${VP4.slotLabel(p.origBank, p.origSlot)}: "${esc(p.origName)}"` : ''}${p.bodyDirty ? ' · parameters or scenes changed' : ''}.</div>` : ''}
+    ${contentsHtml(p)}`;
+
+  $('#fName').addEventListener('input', e => {
+    const v = VP4.cleanName(e.target.value);
+    if (v !== e.target.value) { const pos = e.target.selectionStart - (e.target.value.length - v.length); e.target.value = v; e.target.setSelectionRange(pos, pos); }
+    p.name = v.replace(/\s+$/, ''); $('#nameCount').textContent = v.length;
+    clearTimeout(renderDetail.t); renderDetail.t = setTimeout(() => { const f = document.activeElement === $('#fName'); const pos = $('#fName').selectionStart; render(); if (f) { $('#fName').focus(); $('#fName').setSelectionRange(pos, pos); } }, 500);
+  });
+  const moveTo = () => { p.bank = +$('#fBank').value; p.slot = +$('#fSlot').value; render(); };
+  $('#fBank').onchange = moveTo; $('#fSlot').onchange = moveTo;
+  if ($('#fTempo')) $('#fTempo').onchange = e => {
+    const v = Math.round(+e.target.value); if (isNaN(v)) return renderDetail();
+    p.contents.words[tempo.at] = Math.min(250, Math.max(24, v)); p.bodyDirty = true; render();
+  };
+  $('#btnSave').onclick = () => download(VP4.fileName(p), safeSerialize(p));
+  $('#btnRevert').onclick = () => { p.name = p.origName; p.bank = p.origBank; p.slot = p.origSlot; if (p.bodyDirty) { VP4.resetBody(p); p.origBody = null; } render(); };
+  wireContents(p);
+  $('#btnRemove').onclick = () => { presets = presets.filter(x => x !== p); checked.delete(p.id); selId = presets[0]?.id ?? null; render(); };
+  if ($('#btnHex')) $('#btnHex').onclick = e => {
+    const el = $('#hex'); el.hidden = !el.hidden; e.target.textContent = el.hidden ? 'show' : 'hide';
+    if (!el.hidden && !el.textContent) { let last = w.length - 1; while (last > 0 && w[last] === 0) last--; let s = ''; for (let k = 0; k <= last; k += 8) s += k.toString().padStart(4, ' ') + ': ' + w.slice(k, Math.min(k + 8, last + 1)).map(v => v.toString(16).padStart(4, '0')).join(' ') + '\n'; el.textContent = s + `… ${w.length - last - 1} trailing zero words`; }
+  };
+}
+
+const CH = ['A', 'B', 'C', 'D'];
+const UTIL_ORDER = [37, 42, 2, 206]; // Input, Output, Controllers, Routing/4CM
+const UTIL = new Set(UTIL_ORDER);
+let chainDrag = null;
+let showAllParams = false;
+const VIEWS = [['fx', 'FX Edit'], ['scenes', 'Scenes'], ['in', 'In/Gate'], ['out', 'Output'], ['routing', 'Mix/Routing'], ['ctrl', 'Controllers'], ['midi', 'MIDI'], ['file', 'File']];
+let uiView = 'fx', uiRouteSub = 'mix';
+
+function contentsHtml(p) {
+  const c = p.contents;
+  const editable = !!c && p.model === VP4.MODEL;
+  const views = editable ? VIEWS : VIEWS.filter(v => v[0] === 'file');
+  if (!views.some(v => v[0] === uiView)) uiView = views[0][0];
+  const menu = `<div class="menu" role="tablist">${views.map(([id, label]) => `<button class="mtab ${id === uiView ? 'on' : ''}" role="tab" aria-selected="${id === uiView}" data-view="${id}">${label}</button>`).join('')}</div>`;
+  let body = '';
+  if (uiView === 'file') body = fileViewHtml(p);
+  else {
+    if (!p.origBody) p.origBody = c.words.slice();
+    const ci = chainInfo(p), idxOf = id => ci.all.find(x => x.b.id === id)?.idx;
+    if (uiView === 'fx') {
+      if (p.uiFx == null || !ci.fx.some(x => x.idx === p.uiFx)) p.uiFx = (ci.chain.find(x => x.b) || ci.fx[0])?.idx;
+      p.uiBlock = p.uiFx;
+      body = `<div class="section">${chainRowHtml(p, ci)}
+        <div class="hint">Click a block to edit it.${ci.route ? ' Drag an effect onto another slot to swap them; its scene settings move with it.' : ''}</div></div>
+        ${p.uiBlock != null ? paramEditorHtml(p) : '<div class="hint">This preset has no effect blocks.</div>'}`;
+    } else if (uiView === 'scenes') {
+      body = `<div class="section">${ci.route && ci.route.b.n > 54 ? sceneMatrixHtml(p, ci.route.b, ci.fx) :
+        `<div class="scenes">${c.scenes.map((s, i) => `<label><span>S${i + 1}</span><input type="text" data-scene="${i}" maxlength="${VP4.NAME_LEN}" value="${esc(s)}" spellcheck="false"></label>`).join('')}</div>`}</div>`;
+    } else if (uiView === 'in' || uiView === 'out') {
+      p.uiBlock = idxOf(uiView === 'in' ? 37 : 42);
+      body = p.uiBlock != null ? paramEditorHtml(p) : '<div class="hint">Block not found in this preset.</div>';
+    } else if (uiView === 'routing' || uiView === 'midi') {
+      p.uiBlock = ci.route?.idx;
+      if (!ci.route) body = '<div class="hint">This preset has no routing block.</div>';
+      else if (uiView === 'routing') {
+        const sub = `<div class="subtabs rsub">${[['mix', 'Mix Overview'], ['routing', 'Routing']].map(([id, l]) => `<button class="tab ${id === uiRouteSub ? 'on' : ''}" data-rsub="${id}">${l}</button>`).join('')}</div>`;
+        body = sub + (uiRouteSub === 'mix' ? mixOverviewHtml(p, ci) : showAllParams ? paramEditorHtml(p) : routingViewHtml(p, ci));
+      }
+      else body = midiViewHtml(p, ci.route.b);
+    } else if (uiView === 'ctrl') {
+      const list = [ci.all.find(x => x.b.id === 2), ...ci.all.filter(x => x.b.id >= 3 && x.b.id <= 18)].filter(Boolean);
+      if (p.uiCtrl == null || !list.some(x => x.idx === p.uiCtrl)) p.uiCtrl = list[0]?.idx;
+      p.uiBlock = p.uiCtrl;
+      body = `<div class="section"><div class="subtabs">${list.map(x => `<button class="tab brow ${x.idx === p.uiCtrl ? 'on' : ''}" data-block="${x.idx}">${esc(x.i.name)}</button>`).join('')}</div></div>
+        ${p.uiBlock != null ? paramEditorHtml(p) : ''}`;
+    }
+  }
+  return `${menu}<div class="view">${body}</div>`;
+}
+
+// Effect chain from the routing block: params 15-18 = block id in slots 1-4 (0 = empty),
+// param 63 = PATCH_4CM: 0 disabled, else (value-1) slots pre / rest post
+function chainInfo(p) {
+  const W = p.contents.words;
+  const all = p.contents.blocks.map((b, idx) => ({ b, idx, i: VP4.blockInfo(b, W) }));
+  const fx = all.filter(x => !UTIL.has(x.b.id) && !x.i.advanced);
+  const route = all.find(x => x.b.id === 206);
+  let chain = fx.slice(), pre = -1, items = fx.map(x => ({ group: [x] }));
+  if (route && route.b.n > 18) {
+    const at = route.b.at;
+    const slots = [15, 16, 17, 18].map(k => W[at + k]);
+    chain = slots.map((id, si) => { const x = fx.find(x => x.b.id === id); return x ? { ...x, slot: si } : { empty: true, slot: si }; });
+    const extra = fx.filter(x => !slots.includes(x.b.id));
+    const cm = route.b.n > 63 ? W[at + 63] : 0;
+    if (cm >= 1 && cm <= 5) pre = cm - 1;
+    // Slot i (1-3) set to Parallel (param 19+i = 1) stacks with the slot before it.
+    // FX1 and the first POST effect are always series.
+    items = [];
+    chain.forEach((x, si) => {
+      if (si === pre) items.push({ cm: true, pre });
+      const parallel = si > 0 && !(pre > 0 && si === pre) && route.b.n > 22 && W[at + 19 + si] === 1;
+      const last = items[items.length - 1];
+      if (parallel && last && last.group) last.group.push(x); else items.push({ group: [x] });
+    });
+    if (pre === 4) items.push({ cm: true, pre });
+    extra.forEach(x => items.push({ group: [x] }));
+    chain.push(...extra);
+  }
+  return { all, fx, route, chain, pre, items };
+}
+
+function chainRowHtml(p, ci) {
+  const W = p.contents.words;
+  const blockChanged = b => { for (let k = b.at; k < b.at + b.n * b.ch; k++) if (W[k] !== p.origBody[k]) return true; return false; };
+  const tab = x => {
+    if (x.empty) return `<span class="btab chainx empty" data-slot="${x.slot}">empty slot</span>`;
+    const { b, idx, i } = x;
+    const drag = x.slot != null ? ` draggable="true" data-slot="${x.slot}"` : '';
+    const sub = i.types ? (b.ch > 1 && new Set(i.types).size > 1 ? `${i.types[0]} +${new Set(i.types).size - 1}` : i.types[0]) : (b.ch > 1 ? `${b.ch} channels` : '');
+    const tip = i.types ? i.types.map((t, k) => (b.ch > 1 ? CH[k] + ': ' : '') + t).join('\n') : '';
+    return `<button class="btab brow ${idx === p.uiBlock ? 'sel' : ''}" role="tab" aria-selected="${idx === p.uiBlock}" data-block="${idx}"${drag} title="${esc(tip)}"><span class="bn">${esc(i.name)}${blockChanged(b) ? ' <span class="dot"></span>' : ''}</span><span class="bt">${esc(sub) || '&nbsp;'}</span></button>`;
+  };
+  const item = it => {
+    if (it.cm) return `<span class="btab chainx" title="4CM: ${it.pre} pre / ${4 - it.pre} post (set in Mix/Routing)">4CM</span>`;
+    if (it.group.length === 1) return tab(it.group[0]);
+    return `<div class="pgroup" title="Parallel">${it.group.map(tab).join('')}</div>`;
+  };
+  return `<div class="btabs ${ci.route ? 'chain' : ''}" role="tablist">${ci.items.map(item).join(ci.route ? '<span class="arrow">→</span>' : '')}</div>`;
+}
+
+// Mix Overview: per FX slot, the channel used in the selected scene with its Mix and Level,
+// plus Bypass Mode and the scene's on/off - like VP4-Edit's Mix/Routing page.
+function mixOverviewHtml(p, ci) {
+  const c = p.contents, W = c.words, O = p.origBody, rb = ci.route.b;
+  const s = p.uiScene || 0;
+  const scenes = `<div class="subtabs">${c.scenes.map((n, i) => `<button class="tab ${i === s ? 'on' : ''}" data-scenesel="${i}">S${i + 1} ${esc(n)}</button>`).join('')}</div>`;
+  const cols = [0, 1, 2, 3].map(i => {
+    const id = W[rb.at + 15 + i], x = ci.fx.find(f => f.b.id === id);
+    if (!x) return `<div class="rcol mixcol"><div class="rh">FX${i + 1}: empty</div></div>`;
+    const b = x.b, defs = VP4.paramDefs(x.i.eff) || {};
+    const ch = Math.min(W[SCN.ch(rb, s, i)], b.ch - 1), by = W[SCN.by(rb, s, i)];
+    const base = b.at + ch * b.n;
+    const knob = (k, label) => {
+      const d = defs[k]; if (!d || VP4.kindOf(d) !== 'cont' || k >= b.n) return '';
+      const raw = W[base + k], v = VP4.toDisplay(d, raw), chg = raw !== O[base + k];
+      return `<div class="mk ${chg ? 'chg' : ''}"><label class="rlbl">${label}</label><input type="range" min="0" max="65534" step="1" value="${raw}" data-bk="${x.idx},${ch},${k}" aria-label="${esc(x.i.name)} ${label}"><span><input type="text" class="vnum" data-bk="${x.idx},${ch},${k}" value="${VP4.fmtNum(d, v)}"> <span class="unit">${esc(VP4.unitOf(d))}</span></span></div>`;
+    };
+    const bm = defs[4] && defs[4].strs ? `<div class="mk ${W[base + 4] !== O[base + 4] ? 'chg' : ''}"><label class="rlbl">Bypass Mode</label><select data-bk="${x.idx},${ch},4">${defs[4].strs.map((t, j) => `<option value="${j}" ${j === W[base + 4] ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></div>` : '';
+    const chBtns = `<div class="chsel">${CH.map((n, k) => `<button class="${k === ch ? 'on' : ''}" ${k >= b.ch ? 'disabled' : ''} data-sch2="${s},${i},${k}" title="Use channel ${n} in scene ${s + 1}">${n}</button>`).join('')}</div>`;
+    return `<div class="rcol mixcol"><div class="rh">FX${i + 1}: ${esc(x.i.name)}</div>${chBtns}
+      ${x.i.noMix ? '<div class="mk"><label class="rlbl">Mix</label><div class="na">N/A</div></div>' : knob(1, 'Mix')}${knob(0, 'Level')}${bm}
+      <button class="byp ${by ? 'off' : 'on'}" data-sby="${s},${i}" title="On/off in scene ${s + 1}">${by ? 'OFF' : 'ON'}</button></div>`;
+  }).join('');
+  return `<div class="section">${scenes}<div class="mixgrid">${cols}</div>
+    <div class="hint">Values are for the channel each block uses in the selected scene. Choosing a channel here sets it for that scene.</div></div>`;
+}
+
+// Mix/Routing, laid out like VP4-Edit: one column per FX slot, then the 4CM mode.
+// Params 20/21/22 = Series/Parallel for FX2/FX3/FX4.
+function routingViewHtml(p, ci) {
+  const W = p.contents.words, O = p.origBody, b = ci.route.b, base = b.at;
+  const defs = VP4.paramDefs(60) || {};
+  const chg = k => W[base + k] !== O[base + k];
+  const sel = (k, labels) => `<select data-k="${k}">${labels.map((s, i) => `<option value="${i}" ${i === W[base + k] ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select>`;
+  const cols = [0, 1, 2, 3].map(i => {
+    const id = W[base + 15 + i], bb = id ? p.contents.blocks.find(x => x.id === id) : null;
+    const name = bb ? VP4.blockInfo(bb, W).name : 'empty';
+    let inner;
+    if (i === 0) inner = '<div class="rnote">FX1 is always<br>SERIES</div>';
+    else if (ci.pre > 0 && i === ci.pre) inner = '<div class="rnote">The first POST effect<br>is always SERIES</div>';
+    else { const k = 19 + i; inner = `<label class="rlbl">Routing</label>${sel(k, defs[k]?.strs || ['Series', 'Parallel'])}${chg(k) ? ` <button class="mini" data-reset="${k}" title="Back to the original value">↺</button>` : ''}`; }
+    return `<div class="rcol ${i > 0 && chg(19 + i) ? 'chg' : ''}"><div class="rh"><span>FX${i + 1}: ${esc(name)}</span></div><div class="rb">${inner}</div></div>`;
+  }).join('');
+  const cmLabels = ['Disabled', '0 Pre / 4 Post', '1 Pre / 3 Post', '2 Pre / 2 Post', '3 Pre / 1 Post', '4 Pre / 0 Post'];
+  return `<div class="section"><h3>Routing <label class="tgl"><input type="checkbox" id="tglAll" ${showAllParams ? 'checked' : ''}> show all routing parameters</label></h3>
+    <div class="params rview"><div class="rcols">${cols}</div>
+    <div class="r4cm ${chg(63) ? 'chg' : ''}"><div class="r4sel"><label class="rlbl">4CM Mode</label>${sel(63, cmLabels)}${chg(63) ? ` <button class="mini" data-reset="63">↺</button>` : ''}</div>
+      <p class="hint">With the Four Cable Method the VP4 carries two separate mono paths: the PRE effects sit between your guitar and the amp's input, and the POST effects run through the amp's effects loop.</p></div></div>
+    <div class="hint" style="margin-top:12px">The chain order itself is changed in FX Edit (drag a block onto another slot).</div></div>`;
+}
+
+function midiViewHtml(p, b) {
+  const W = p.contents.words, O = p.origBody, base = b.at;
+  const chg = k => W[base + k] !== O[base + k];
+  const num = (k, min, max) => `<input type="number" class="vint" data-k="${k}" min="${min}" max="${max}" step="1" value="${W[base + k]}">`;
+  let h = '';
+  for (let s = 0; s < 4; s++) {
+    h += `<tr><td class="pn">${esc(p.contents.scenes[s] || 'Scene ' + (s + 1))}<span class="unit" style="display:block">Scene ${s + 1}</span></td><td class="pc" colspan="3"><div class="midi">${[0, 1, 2, 3].map(m => {
+      const km = 64 + s * 4 + m, kc = 80 + s * 4 + m, kv = 96 + s * 4 + m;
+      return `<div class="mrow ${chg(km) || chg(kc) || chg(kv) ? 'chg' : ''}"><span class="unit">${m + 1}</span> Msg ${num(km, 0, 129)} Ch ${num(kc, 1, 16)} Val ${num(kv, 0, 127)}</div>`;
+    }).join('')}</div></td></tr>`;
+  }
+  return `<div class="section"><h3>Scene MIDI</h3><table class="params"><tbody>${h}</tbody></table>
+    <div class="hint">Up to 4 MIDI messages per scene, sent when the scene is selected. "Msg" is the message number as stored in the preset.</div></div>`;
+}
+
+function fileViewHtml(p) {
+  const w = p.words, hx = v => v == null ? '—' : '0x' + v.toString(16).toUpperCase().padStart(4, '0');
+  return `${p.model !== VP4.MODEL ? '<div class="hint">Editing is available for VP4 presets only.</div>' : ''}
+    <div class="section"><h3>Validation</h3><ul class="checks">${p.checks.map(c => `<li class="${c.lvl}">${esc(c.t)}</li>`).join('')}</ul></div>
+    <div class="section"><h3>File details</h3><div class="kv">
+      <div>Source</div><div>${esc(p.srcName)}${p.index != null ? ` (preset ${p.index + 1} in file)` : ''}</div>
+      <div>Format version</div><div class="mono">${hx(w[0])}</div>
+      <div>Data CRC</div><div class="mono">${hx(w[2])}</div>
+      <div>End checksum</div><div class="mono">${hx(p.footer)}</div>
+      <div>Unpacked / compressed size</div><div>${w[36]} / ${w[37]} bytes</div>
+    </div></div>
+    <div class="section"><h3>Data words <button id="btnHex" style="padding:2px 8px;margin-left:8px">show</button></h3><pre class="hex mono" id="hex" hidden></pre></div>`;
+}
+
+/* Per-scene state of the 4 slots is stored twice and kept in sync:
+   Routing params 23+4s+i (channel 0-3) and 39+4s+i (1 = bypassed), and in scene record s
+   at words 18+2i (channel) and 26+2i (bypassed). Verified identical in 1888 scenes. */
+const SCN = {
+  ch: (route, s, i) => route.at + 23 + 4 * s + i,
+  by: (route, s, i) => route.at + 39 + 4 * s + i,
+  recCh: (s, i) => 40 * s + 18 + 2 * i,
+  recBy: (s, i) => 40 * s + 26 + 2 * i,
+};
+function setSceneSlot(c, route, s, i, what, v) {
+  if (what === 'ch') { c.words[SCN.ch(route, s, i)] = v; c.words[SCN.recCh(s, i)] = v; }
+  else { c.words[SCN.by(route, s, i)] = v; c.words[SCN.recBy(s, i)] = v; }
+}
+
+// Swap two of the 4 slots: block id plus each scene's channel/bypass move together.
+// Series/parallel links and the 4CM split belong to slot positions and stay put.
+function swapSlots(c, route, i, j) {
+  if (i === j) return;
+  const W = c.words, sw = (a, b) => { const t = W[a]; W[a] = W[b]; W[b] = t; };
+  sw(route.at + 15 + i, route.at + 15 + j);
+  for (let s = 0; s < 4; s++) {
+    sw(SCN.ch(route, s, i), SCN.ch(route, s, j)); sw(SCN.recCh(s, i), SCN.recCh(s, j));
+    sw(SCN.by(route, s, i), SCN.by(route, s, j)); sw(SCN.recBy(s, i), SCN.recBy(s, j));
+  }
+}
+
+function sceneMatrixHtml(p, route, fx) {
+  const c = p.contents, W = c.words, O = p.origBody;
+  const slots = [15, 16, 17, 18].map(k => fx.find(x => x.b.id === W[route.at + k]) || null);
+  const head = c.scenes.map((s, i) => `<th><input type="text" data-scene="${i}" maxlength="${VP4.NAME_LEN}" value="${esc(s)}" spellcheck="false" title="Scene ${i + 1} name" aria-label="Scene ${i + 1} name"><span class="sn">Scene ${i + 1}</span></th>`).join('');
+  const body = slots.map((x, i) => {
+    if (!x) return `<tr class="empty"><td class="sl">Slot ${i + 1}<span>empty</span></td><td colspan="4"></td></tr>`;
+    return `<tr><td class="sl">${esc(x.i.name)}<span>Slot ${i + 1}</span></td>${[0, 1, 2, 3].map(s => {
+      const ch = W[SCN.ch(route, s, i)], by = W[SCN.by(route, s, i)];
+      const chg = ch !== O[SCN.ch(route, s, i)] || by !== O[SCN.by(route, s, i)];
+      const sel = x.b.ch > 1 ? `<select data-sch="${s},${i}" aria-label="${esc(x.i.name)} channel in scene ${s + 1}">${CH.slice(0, x.b.ch).map((n, k) => `<option value="${k}" ${k === ch ? 'selected' : ''}>${n}</option>`).join('')}</select>` : '<span class="nochan">–</span>';
+      return `<td class="${chg ? 'chg' : ''}"><div class="cell2">${sel}<button class="byp ${by ? 'off' : 'on'}" data-sby="${s},${i}" title="${by ? 'Bypassed: click to engage' : 'Engaged: click to bypass'}">${by ? 'OFF' : 'ON'}</button></div></td>`;
+    }).join('')}</tr>`;
+  }).join('');
+  return `<div class="smx-wrap"><table class="smx"><thead><tr><th></th>${head}</tr></thead><tbody>${body}</tbody></table></div>
+    <div class="hint">Channel and on/off for each block in each scene. Changed cells are outlined.</div>`;
+}
+
+function paramEditorHtml(p) {
+  const c = p.contents, b = c.blocks[p.uiBlock]; if (!b) return '';
+  const info = VP4.blockInfo(b, c.words), defs = VP4.paramDefs(info.eff) || {};
+  const ch = Math.min(p.uiCh || 0, b.ch - 1); p.uiCh = ch;
+  const W = c.words, base = b.at + ch * b.n;
+  let rows = '';
+  // Type (parameter 10, when it is the block's type list) goes first, like on the VP4
+  const order = [...Array(b.n).keys()];
+  if (info.types && b.n > 10) { order.splice(10, 1); order.unshift(10); }
+  for (const k of order) {
+    const d = defs[k], kind = VP4.kindOf(d);
+    if (!showAllParams && (kind === 'hidden' || (d && !d.named) || (!d && kind === 'raw') || (k === 1 && info.noMix))) continue;
+    const raw = W[base + k], orig = p.origBody[base + k], chg = raw !== orig;
+    const name = d ? (/^\d+$/.test(d.name) ? `${d.name} Hz band` : d.name || `Parameter ${k}`) : `Parameter ${k}`;
+    let ctl = '', val = '';
+    if (kind === 'enum') ctl = VP4.enumSelect(`data-k="${k}"`, d, raw);
+    else if (kind === 'toggle') ctl = `<label class="sw"><input type="checkbox" data-k="${k}" ${raw >= 0x4000 ? 'checked' : ''}> ${raw >= 0x4000 ? 'On' : 'Off'}</label>`;
+    else if (kind === 'int') { const signed = (d.type & 15) === 15, v = signed ? VP4.int16(raw) : raw; ctl = `<input type="number" class="vint" data-k="${k}" min="${d.min}" max="${d.max}" step="1" value="${v}"> <span class="unit">${esc(VP4.unitOf(d))}</span>`; }
+    else if (kind === 'cont') { const v = VP4.toDisplay(d, raw); ctl = `<input type="range" data-k="${k}" min="0" max="65534" step="1" value="${raw}">`; val = `<input type="text" class="vnum" data-k="${k}" value="${VP4.fmtNum(d, v)}"> <span class="unit">${esc(VP4.unitOf(d))}</span>`; }
+    else ctl = `<input type="number" class="vint" data-k="${k}" min="0" max="65535" step="1" value="${raw}"> <span class="unit">raw</span>`;
+    rows += `<tr class="${chg ? 'chg' : ''}" title="${chg ? 'Was: ' + esc(VP4.formatValue(d, orig)) : ''}"><td class="pn">${esc(name)}</td><td class="pc">${ctl}</td><td class="pv">${val}</td><td class="pr">${chg ? `<button class="mini" data-reset="${k}" title="Back to the original value">↺</button>` : ''}</td></tr>`;
+  }
+  const route = c.blocks.find(x => x.id === 206);
+  const slot = route && route.n > 54 ? [15, 16, 17, 18].findIndex(k => W[route.at + k] === b.id) : -1;
+  const mover = slot >= 0 ? `<span class="mover"><button class="mini" data-move="-1" ${slot === 0 ? 'disabled' : ''} title="Move to slot ${slot}">◀</button><span>Slot ${slot + 1}</span><button class="mini" data-move="1" ${slot === 3 ? 'disabled' : ''} title="Move to slot ${slot + 2}">▶</button></span>` : '';
+  return `<div class="section editor"><h3>${esc(info.name)}${info.types ? ' · ' + esc(info.types[ch]) : ''} ${mover}
+      <label class="tgl"><input type="checkbox" id="tglAll" ${showAllParams ? 'checked' : ''}> show unnamed / internal</label></h3>
+    ${b.ch > 1 ? `<div class="tabs">${Array.from({ length: b.ch }, (_, i) => `<button class="tab ${i === ch ? 'on' : ''}" data-ch="${i}">Channel ${CH[i]}</button>`).join('')}</div>` : ''}
+    <table class="params"><tbody>${rows || '<tr><td style="color:var(--dim)">No named parameters.</td></tr>'}</tbody></table>
+    ${VP4.paramDefs(info.eff) ? '' : '<div class="hint">No parameter definitions for this block: raw values shown.</div>'}</div>`;
+}
+
+function wireContents(p) {
+  const c = p.contents; if (!c) return;
+  const d = $('#detail');
+  const markDirty = () => { const was = VP4.isModified(p); p.bodyDirty = true; if (!was) render(false); };
+  d.querySelectorAll('[data-scene]').forEach(inp => inp.addEventListener('input', () => { VP4.setSceneName(c, +inp.dataset.scene, inp.value); markDirty(); }));
+  d.querySelectorAll('.brow').forEach(r => r.addEventListener('click', () => { if (uiView === 'ctrl') p.uiCtrl = +r.dataset.block; else p.uiFx = +r.dataset.block; renderDetail(); }));
+  d.querySelectorAll('[data-view]').forEach(t => t.addEventListener('click', () => { uiView = t.dataset.view; renderDetail(); }));
+  d.querySelectorAll('[data-ch]').forEach(t => t.addEventListener('click', () => { p.uiCh = +t.dataset.ch; renderDetail(); }));
+  const all = $('#tglAll'); if (all) all.onchange = e => { showAllParams = e.target.checked; renderDetail(); };
+  const route = c.blocks.find(x => x.id === 206);
+  if (route && p.model === VP4.MODEL) {
+    d.querySelectorAll('[data-sch]').forEach(el => el.addEventListener('change', () => { const [s, i] = el.dataset.sch.split(',').map(Number); setSceneSlot(c, route, s, i, 'ch', +el.value); markDirty(); renderDetail(); }));
+    d.querySelectorAll('[data-sby]').forEach(el => el.addEventListener('click', () => { const [s, i] = el.dataset.sby.split(',').map(Number); setSceneSlot(c, route, s, i, 'by', c.words[SCN.by(route, s, i)] ? 0 : 1); markDirty(); renderDetail(); }));
+    d.querySelectorAll('[data-rsub]').forEach(el => el.addEventListener('click', () => { uiRouteSub = el.dataset.rsub; renderDetail(); }));
+    d.querySelectorAll('[data-scenesel]').forEach(el => el.addEventListener('click', () => { p.uiScene = +el.dataset.scenesel; renderDetail(); }));
+    d.querySelectorAll('[data-sch2]').forEach(el => el.addEventListener('click', () => { const [s, i, k] = el.dataset.sch2.split(',').map(Number); setSceneSlot(c, route, s, i, 'ch', k); markDirty(); renderDetail(); }));
+    const mix = d.querySelector('.mixgrid');
+    if (mix) {
+      const parse = el => { const [bi, ch, k] = el.dataset.bk.split(',').map(Number); const b = c.blocks[bi]; return { b, k, at: b.at + ch * b.n + k, def: (VP4.paramDefs(VP4.blockInfo(b, c.words).eff) || {})[k] }; };
+      mix.addEventListener('input', e => { const el = e.target; if (!el.dataset.bk || el.type !== 'range') return; const t = parse(el); c.words[t.at] = +el.value; markDirty(); const v = mix.querySelector(`.vnum[data-bk="${el.dataset.bk}"]`); if (v) v.value = VP4.fmtNum(t.def, VP4.toDisplay(t.def, +el.value)); });
+      mix.addEventListener('change', e => { const el = e.target; if (!el.dataset.bk) return; const t = parse(el);
+        if (el.tagName === 'SELECT') c.words[t.at] = +el.value;
+        else if (el.classList.contains('vnum')) { const x = parseFloat(el.value.replace(',', '.')); if (!isNaN(x)) c.words[t.at] = VP4.fromDisplay(t.def, x); }
+        markDirty(); renderDetail(); });
+    }
+    const doSwap = (i, j) => { if (i === j || j < 0 || j > 3) return; swapSlots(c, route, i, j); markDirty(); renderDetail(); };
+    d.querySelectorAll('[data-move]').forEach(el => el.addEventListener('click', () => {
+      const id = c.blocks[p.uiBlock].id, i = [15, 16, 17, 18].findIndex(k => c.words[route.at + k] === id); doSwap(i, i + +el.dataset.move);
+    }));
+    const chainEl = d.querySelector('.btabs.chain');
+    if (chainEl) {
+      const clear = () => chainEl.querySelectorAll('.dragover').forEach(x => x.classList.remove('dragover'));
+      chainEl.addEventListener('dragstart', e => { const t = e.target.closest('[draggable][data-slot]'); if (!t) return; chainDrag = +t.dataset.slot; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', 'slot'); });
+      chainEl.addEventListener('dragover', e => { if (chainDrag == null) return; const t = e.target.closest('[data-slot]'); if (!t) return; e.preventDefault(); e.stopPropagation(); clear(); t.classList.add('dragover'); });
+      chainEl.addEventListener('drop', e => { if (chainDrag == null) return; e.preventDefault(); e.stopPropagation(); const t = e.target.closest('[data-slot]'); const from = chainDrag; chainDrag = null; clear(); if (t) doSwap(from, +t.dataset.slot); });
+      chainEl.addEventListener('dragend', () => { chainDrag = null; clear(); });
+    }
+  }
+  const b = c.blocks[p.uiBlock]; if (!b || p.model !== VP4.MODEL) return;
+  const defs = VP4.paramDefs(VP4.blockInfo(b, c.words).eff) || {};
+  const at = k => b.at + p.uiCh * b.n + k;
+  const setRaw = (k, raw, full) => {
+    c.words[at(k)] = raw & 0xffff;
+    if (b.id === 206 && k >= 23 && k <= 54) { const j = k < 39 ? k - 23 : k - 39; setSceneSlot(c, b, j >> 2, j & 3, k < 39 ? 'ch' : 'by', raw & 0xffff); full = true; }
+    markDirty(); if (full) renderDetail(); else { const tr = d.querySelector(`[data-k="${k}"]`).closest('tr'); const chg = c.words[at(k)] !== p.origBody[at(k)]; tr.classList.toggle('chg', chg); } };
+  const tbl = d.querySelector('.params'); if (!tbl) return;
+  tbl.addEventListener('input', e => {
+    const k = +e.target.dataset.k, def = defs[k];
+    if (e.target.type === 'range') { const raw = +e.target.value; setRaw(k, raw); const v = VP4.toDisplay(def, raw); const t = tbl.querySelector(`.vnum[data-k="${k}"]`); if (t) t.value = VP4.fmtNum(def, v); }
+  });
+  tbl.addEventListener('change', e => {
+    const el = e.target, k = +el.dataset.k, def = defs[k]; if (isNaN(k)) return;
+    if (el.tagName === 'SELECT') setRaw(k, +el.value, k === 10 || b.id === 206);
+    else if (el.type === 'checkbox') setRaw(k, el.checked ? 0x7fff : 0, true);
+    else if (el.classList.contains('vnum')) { const x = parseFloat(el.value.replace(',', '.')); if (isNaN(x)) return renderDetail(); setRaw(k, VP4.fromDisplay(def, x), true); }
+    else if (el.classList.contains('vint')) { let x = Math.round(+el.value); if (isNaN(x)) return renderDetail(); if (def) x = Math.min(def.max, Math.max(def.min, x)); setRaw(k, x, true); }
+    else if (el.type === 'range') renderDetail();
+  });
+  tbl.addEventListener('click', e => { const r = e.target.closest('[data-reset]'); if (r) { const k = +r.dataset.reset; setRaw(k, p.origBody[at(k)], true); } });
+}
+
+function download(name, data) {
+  const blob = data instanceof Blob ? data : new Blob([data], { type: 'application/octet-stream' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+const exportSet = () => { const s = presets.filter(p => checked.has(p.id)); return (s.length ? s : presets).slice().sort((a, b) => slotKey(a) - slotKey(b)); };
+function warnConflicts(list) { const seen = new Map(); list.forEach(p => seen.set(slotKey(p), (seen.get(slotKey(p)) || 0) + 1)); return [...seen.values()].some(v => v > 1); }
+
+$('#btnZip').onclick = () => {
+  const list = exportSet(); const names = new Set();
+  const files = list.map(p => { let n = VP4.fileName(p), i = 2; while (names.has(n.toLowerCase())) n = VP4.fileName(p).replace(/\.syx$/, ` (${i++}).syx`); names.add(n.toLowerCase()); return { name: n, data: safeSerialize(p) }; });
+  const d = new Date(), stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+  if (!checked.size) systems.forEach(s => files.push({ name: s.srcName.split(/[\\/]/).pop(), data: VP4.serializeSystem(s) }));
+  download(`VP4-presets-${stamp}.zip`, new Blob(VP4.zip(files), { type: 'application/zip' }));
+  toast(`Exported ${files.length} preset${files.length === 1 ? '' : 's'}${checked.size ? ' (checked only)' : ''}`);
+};
+$('#btnBank').onclick = () => {
+  const list = exportSet();
+  if (warnConflicts(list) && !confirm('Some presets share a slot. When you send this file, later ones will overwrite earlier ones on the VP4. Export anyway?')) return;
+  const parts = list.map(safeSerialize), len = parts.reduce((a, b) => a + b.length, 0), out = new Uint8Array(len); let o = 0; parts.forEach(b => { out.set(b, o); o += b.length; });
+  download(`VP4-combined-${list.length}-presets.syx`, out);
+  toast(`Exported ${list.length} preset${list.length === 1 ? '' : 's'} as one file${checked.size ? ' (checked only)' : ''}`);
+};
+$('#btnClear').onclick = () => { if ((presets.some(VP4.isModified) || systems.some(VP4.isSystemModified)) && !confirm('Discard all loaded files and edits?')) return; presets = []; systems = []; ignored = []; checked.clear(); selId = null; render(); };
+document.querySelectorAll('.ttab').forEach(b => b.addEventListener('click', () => { uiTop = b.dataset.top; renderTop(); }));
+$('#btnFiles').onclick = () => $('#inFiles').click();
+$('#btnFolder').onclick = () => $('#inFolder').click();
+$('#inFiles').onchange = e => { loadFiles(e.target.files); e.target.value = ''; };
+$('#inFolder').onchange = e => { loadFiles(e.target.files); e.target.value = ''; };
+$('#selAll').onchange = e => { presets.forEach(p => e.target.checked ? checked.add(p.id) : checked.delete(p.id)); render(); };
+
+$('#list').addEventListener('click', e => {
+  const c = e.target.closest('[data-chk]'); if (c) { const id = +c.dataset.chk; c.checked ? checked.add(id) : checked.delete(id); render(); return; }
+  const r = e.target.closest('tr.row'); if (r) { selId = +r.dataset.id; render(); }
+});
+$('#grid').addEventListener('click', e => {
+  const c = e.target.closest('.cell.filled'); if (!c) return;
+  const here = presets.filter(p => p.bank === +c.dataset.b && p.slot === +c.dataset.s);
+  const i = here.findIndex(p => p.id === selId); selId = here[(i + 1) % here.length].id; render();
+});
+// drag to move / swap
+let dragId = null;
+$('#grid').addEventListener('dragstart', e => { const c = e.target.closest('.cell.filled'); if (!c) return; dragId = +c.dataset.id; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', 'vp4'); });
+$('#grid').addEventListener('dragover', e => { if (dragId == null) return; const c = e.target.closest('.cell'); if (!c) return; e.preventDefault(); document.querySelectorAll('.dragover').forEach(x => x.classList.remove('dragover')); c.classList.add('dragover'); });
+$('#grid').addEventListener('drop', e => {
+  if (dragId == null) return; e.preventDefault(); e.stopPropagation();
+  const c = e.target.closest('.cell'); const p = presets.find(x => x.id === dragId); dragId = null; if (!c || !p) return render();
+  const b = +c.dataset.b, s = +c.dataset.s; if (b === p.bank && s === p.slot) return render();
+  presets.filter(x => x.bank === b && x.slot === s).forEach(x => { x.bank = p.bank; x.slot = p.slot; });
+  p.bank = b; p.slot = s; selId = p.id; render();
+});
+$('#grid').addEventListener('dragend', () => { dragId = null; document.querySelectorAll('.dragover').forEach(x => x.classList.remove('dragover')); });
+
+// external file / folder drop
+async function readEntry(entry, out) {
+  if (entry.isFile) { const f = await new Promise((res, rej) => entry.file(res, rej)); try { Object.defineProperty(f, 'webkitRelativePath', { value: entry.fullPath.replace(/^\//, '') }); } catch { } out.push(f); }
+  else if (entry.isDirectory) { const r = entry.createReader(); let batch; do { batch = await new Promise((res, rej) => r.readEntries(res, rej)); for (const x of batch) await readEntry(x, out); } while (batch.length); }
+}
+document.addEventListener('dragover', e => { if (dragId != null || chainDrag != null) return; e.preventDefault(); $('#drop').classList.add('over'); });
+document.addEventListener('dragleave', e => { if (!e.relatedTarget) $('#drop').classList.remove('over'); });
+document.addEventListener('drop', async e => {
+  if (dragId != null || chainDrag != null) return; e.preventDefault(); $('#drop').classList.remove('over');
+  const items = [...(e.dataTransfer.items || [])].map(i => i.webkitGetAsEntry && i.webkitGetAsEntry()).filter(Boolean);
+  if (items.length) { const files = []; for (const it of items) await readEntry(it, files); loadFiles(files); }
+  else loadFiles(e.dataTransfer.files);
+});
+window.addEventListener('beforeunload', e => { if (presets.some(VP4.isModified) || systems.some(VP4.isSystemModified)) { e.preventDefault(); e.returnValue = ''; } });
+render();
+</script>
+</body>
+</html>
